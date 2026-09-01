@@ -1,9 +1,16 @@
 # Roleta BDR — Webhook de Distribuição de Leads (HubSpot → Slack)
 
 Serviço em Node.js/Express que recebe leads inbound do HubSpot via webhook,
-distribui entre 3 times (Time A, Time B, Time C) em **round-robin**, atualiza
-o owner do negócio (deal) no HubSpot e avisa o time no Slack, mencionando o
-BDR responsável e o gerente do time.
+distribui entre os coordenadores/BDRs cadastrados em **round-robin de 2
+níveis**, atualiza o owner do negócio (deal) no HubSpot, avisa o time no
+Slack (mencionando o BDR e o coordenador) e guarda tudo em um banco SQLite
+que alimenta um **dashboard de visualização**.
+
+> ⚠️ **Status atual: rascunho / desenho.** A lista de coordenadores e BDRs em
+> `data/bdrs-seed.json` foi passada pelo usuário em 01/09/2026 como
+> **não-oficial**, só para prototiparmos a lógica e o dashboard. Owner IDs do
+> HubSpot, IDs de usuário/canal do Slack ainda não existem — tudo roda em
+> `DRY_RUN=true` até isso ser confirmado.
 
 ## Como funciona (fluxo)
 
@@ -14,20 +21,27 @@ HubSpot (form inbound) --workflow/webhook--> POST /webhook/hubspot-lead
                                     1. Valida payload (name, company, email, form)
                                                      │
                                                      ▼
-                              2. Sorteia o próximo time (round-robin persistido
-                                 em data/round-robin-state.json: A → B → C → A → ...)
+                       2. Roleta em 2 níveis (persistida no SQLite):
+                          a) sorteia o próximo COORDENADOR (Allen → Camila → Welington → Allen...)
+                          b) dentro do time daquele coordenador, sorteia o próximo BDR
                                                      │
                                      ┌───────────────┴───────────────┐
                                      ▼                                ▼
                     3a. Resolve o dealId e atualiza      3b. Envia mensagem no canal
                         hubspot_owner_id no HubSpot           do Slack do time,
-                        (PATCH /crm/v3/objects/deals/{id})     mencionando @BDR e @gerente
+                        (owner = o BDR sorteado)              mencionando @BDR e @coordenador
+                                     │                                │
+                                     └───────────────┬────────────────┘
+                                                      ▼
+                                  4. Grava o lead no SQLite (data/roleta.db)
+                                     → alimenta o dashboard em /dashboard
 ```
 
 Os passos 3a e 3b são independentes: se um falhar (ex: token do Slack
 inválido), o outro ainda é tentado, e a resposta HTTP inclui um relatório de
 erros por etapa (`errors: [{ step, message }]`) em vez de perder o lead
-inteiro por causa de uma falha pontual.
+inteiro por causa de uma falha pontual. O lead é salvo no banco de qualquer
+forma, junto com o que deu certo/errado.
 
 ### Como o `dealId` é resolvido
 
@@ -41,25 +55,61 @@ serviço tenta, nessa ordem:
 
 Isso está implementado em `src/services/hubspotService.js` (`resolveDealId`).
 
-### Round-robin
+### Roleta em 2 níveis
 
-O índice do último time sorteado fica em `data/round-robin-state.json`
-(`{ "lastIndex": N }`). A cada lead, calcula-se `(lastIndex + 1) % 3` e
-persiste-se o novo valor — por isso a distribuição sobrevive a reinícios do
-servidor. Lógica em `src/state/roundRobinStore.js`.
+- **Nível 1 — coordenador:** cicla pela tabela `coordenadores` na ordem do
+  seed (Allen → Camila → Welington → Allen → ...).
+- **Nível 2 — BDR:** dentro do time do coordenador sorteado, cicla pelos
+  BDRs daquele coordenador (na ordem do seed).
 
-## Configuração dos times
+Os dois índices ficam na tabela `round_robin_state` do SQLite (uma linha
+para o coordenador, uma linha por coordenador para o BDR), por isso a
+distribuição sobrevive a reinícios do servidor. Lógica em
+`src/state/roundRobinStore.js` e `src/services/leadDistributionService.js`.
 
-Edite `src/config/teams.js` e preencha os campos `TODO_...` de cada time:
+## Banco de dados (SQLite)
 
-- `hubspotOwnerId`: ID do owner no HubSpot que será colocado no deal.
-- `slackChannelId`: ID do canal do Slack do time (não o nome `#time-a`).
-- `bdr.name` / `bdr.slackUserId`: BDR responsável, mencionado na mensagem.
-- `manager.name` / `manager.slackUserId`: gerente do time, também mencionado.
+Usa o módulo `node:sqlite` nativo do Node 22 (sem dependências extras / sem
+compilação nativa). Arquivo em `data/roleta.db` (gerado em runtime, não
+versionado).
 
-Enquanto algum time ainda tiver placeholders, o serviço recusa processar
-leads reais para esse time e retorna um erro claro explicando o que falta
-preencher.
+Tabelas:
+
+- `coordenadores` (nome, slack_user_id, slack_channel_id, ordem)
+- `bdrs` (nome, coordenador_id, slack_user_id, hubspot_owner_id, ordem)
+- `round_robin_state` (posição atual da roleta, por nível)
+- `leads` (histórico: nome, empresa, email, form, deal_id, coordenador/BDR
+  sorteados, se HubSpot/Slack deram certo, se foi dry-run, erros)
+
+### Seed / configuração de coordenadores e BDRs
+
+Edite `data/bdrs-seed.json` (marcado como rascunho — substitua quando a
+lista for oficial) e rode:
+
+```bash
+npm run seed
+```
+
+É idempotente: pode rodar de novo quantas vezes quiser, sem duplicar nem
+apagar o histórico de leads já distribuídos. Na primeira execução do
+servidor (`npm start`), se o banco estiver vazio, o seed roda sozinho.
+
+Depois de ter os dados reais, preencha direto no banco (ou estenda o seed
+para ler `hubspot_owner_id` / `slack_user_id` / `slack_channel_id` do JSON)
+antes de sair do `DRY_RUN`.
+
+## Dashboard de visualização
+
+`GET /dashboard` — página com:
+
+- Próximo coordenador/BDR sorteado (sem consumir a roleta)
+- Total de leads distribuídos
+- Gráfico de leads por coordenador
+- Gráfico de leads por BDR (colorido por coordenador)
+- Tabela com o histórico completo de leads (status HubSpot/Slack, dry-run)
+
+Atualiza sozinho a cada 5s. Os dados vêm de `/dashboard/api/state`,
+`/dashboard/api/stats` e `/dashboard/api/leads`.
 
 ## Variáveis de ambiente
 
@@ -73,9 +123,9 @@ DRY_RUN=true           # true = não chama HubSpot/Slack de verdade, só loga
 ```
 
 `DRY_RUN=true` é o jeito recomendado de **entender e validar a lógica**
-antes de ter os tokens e os dados reais dos times: o round-robin funciona
+antes de ter os tokens e os dados reais dos times: a roleta funciona
 normalmente e os serviços de HubSpot/Slack apenas logam no console o que
-fariam, em vez de chamar as APIs.
+fariam, em vez de chamar as APIs. O dashboard funciona igual nos dois modos.
 
 ## Rodando
 
@@ -83,6 +133,7 @@ fariam, em vez de chamar as APIs.
 npm install
 cp .env.example .env
 npm start
+# abra http://localhost:3000/dashboard
 ```
 
 ## Endpoints
@@ -100,18 +151,20 @@ npm start
   ```
   (`dealId` é opcional — veja "Como o dealId é resolvido" acima.)
 
+- `GET /dashboard` — dashboard visual (veja acima).
 - `GET /test/health` — health-check simples.
-- `GET /test/next-team` — mostra qual seria o próximo time sorteado, **sem**
-  avançar o round-robin (só consulta).
-- `POST /test/simulate-lead` — roda o fluxo completo (round-robin + HubSpot +
-  Slack) com um lead de exemplo; aceita overrides no body. Combine com
-  `DRY_RUN=true` para testar sem tokens/IDs reais configurados.
+- `GET /test/next-team` — mostra qual seria o próximo coordenador+BDR
+  sorteado, **sem** avançar a roleta (só consulta).
+- `POST /test/simulate-lead` — roda o fluxo completo (roleta + HubSpot +
+  Slack + gravação no banco) com um lead de exemplo; aceita overrides no
+  body. Combine com `DRY_RUN=true` para testar sem tokens/IDs reais.
 
 ## Tratamento de erros
 
 - Payload inválido no webhook → `400` com a lista de campos faltando.
 - Falha ao resolver/atualizar o deal no HubSpot ou ao enviar a mensagem no
   Slack → não derruba a requisição inteira; a etapa que falhou aparece em
-  `errors` na resposta (status `207` quando há falha parcial).
+  `errors` na resposta (status `207` quando há falha parcial) e fica
+  registrada no banco (`leads.erros`).
 - Erros não previstos caem no middleware central (`src/server.js`) e voltam
   como JSON `{ ok: false, message }`, sem derrubar o processo.

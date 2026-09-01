@@ -24,8 +24,8 @@ router.get("/health", (req, res) => {
  * exemplo, permitindo sobrescrever qualquer campo via body.
  *
  * Dica: rode com DRY_RUN=true no .env para ver nos logs o que seria feito
- * no HubSpot e no Slack, sem precisar de tokens reais nem de times já
- * configurados de verdade em src/config/teams.js.
+ * no HubSpot e no Slack, sem precisar de tokens/IDs reais preenchidos em
+ * data/bdrs-seed.json.
  */
 router.post("/simulate-lead", async (req, res, next) => {
   try {
@@ -39,14 +39,19 @@ router.post("/simulate-lead", async (req, res, next) => {
 
 /**
  * GET /test/next-team
- * Só mostra qual seria o próximo time sorteado pelo round-robin, sem chamar
- * HubSpot/Slack e sem consumir o índice (chamadas repetidas retornam o
- * mesmo time, diferente do /simulate-lead que avança a roleta).
+ * Só mostra qual seria o próximo coordenador+BDR sorteado pelo round-robin,
+ * sem chamar HubSpot/Slack e sem consumir o índice (chamadas repetidas
+ * retornam o mesmo resultado, diferente do /simulate-lead que avança a roleta).
  */
 router.get("/next-team", (req, res, next) => {
   try {
-    const team = peekNextTeam();
-    res.json({ next: { id: team.id, name: team.name } });
+    const { coordenador, bdr } = peekNextTeam();
+    res.json({
+      next: {
+        coordenador: { id: coordenador.id, nome: coordenador.nome },
+        bdr: { id: bdr.id, nome: bdr.nome },
+      },
+    });
   } catch (err) {
     next(err);
   }

@@ -1,53 +1,63 @@
-const { TEAMS, hasPlaceholders } = require("../config/teams");
-const { getNextTeamIndex, peekNextTeamIndex } = require("../state/roundRobinStore");
+const repo = require("../db/repository");
+const roundRobin = require("../state/roundRobinStore");
 const hubspotService = require("./hubspotService");
 const slackService = require("./slackService");
 
 /**
- * Sorteia (e persiste) o próximo time na roleta (round-robin) e retorna o
- * objeto do time.
+ * Sorteia (e persiste) o próximo coordenador e, dentro do time dele, o
+ * próximo BDR — round-robin em 2 níveis:
+ *   1. coordenador -> coordenador -> coordenador -> ... (ordem fixa do seed)
+ *   2. dentro do time do coordenador sorteado, o próximo BDR daquele time
  */
-function pickNextTeam() {
-  const index = getNextTeamIndex(TEAMS.length);
-  return TEAMS[index];
+function pickNextCoordenadorAndBdr({ persist }) {
+  const coordenadores = repo.listCoordenadores();
+  if (coordenadores.length === 0) {
+    throw new Error("Nenhum coordenador cadastrado. Rode `npm run seed` primeiro.");
+  }
+
+  const coordenadorIndex = persist
+    ? roundRobin.advanceCoordenadorIndex(coordenadores.length)
+    : roundRobin.peekCoordenadorIndex(coordenadores.length);
+  const coordenador = coordenadores[coordenadorIndex];
+
+  const bdrs = repo.listBdrsByCoordenador(coordenador.id);
+  if (bdrs.length === 0) {
+    throw new Error(`Coordenador "${coordenador.nome}" não tem nenhum BDR ativo cadastrado.`);
+  }
+
+  const bdrIndex = persist
+    ? roundRobin.advanceBdrIndex(coordenador.id, bdrs.length)
+    : roundRobin.peekBdrIndex(coordenador.id, bdrs.length);
+  const bdr = bdrs[bdrIndex];
+
+  return { coordenador, bdr };
 }
 
-/**
- * Apenas consulta qual seria o próximo time, sem avançar a roleta.
- */
+function pickNextTeam() {
+  return pickNextCoordenadorAndBdr({ persist: true });
+}
+
 function peekNextTeam() {
-  const index = peekNextTeamIndex(TEAMS.length);
-  return TEAMS[index];
+  return pickNextCoordenadorAndBdr({ persist: false });
 }
 
 /**
  * Orquestra a distribuição de um lead:
- *   1. Sorteia o time da vez (round-robin persistido em disco).
- *   2. Resolve/atualiza o owner do deal no HubSpot.
- *   3. Notifica o time no Slack (BDR + gerente).
+ *   1. Sorteia coordenador + BDR da vez (round-robin em 2 níveis, persistido).
+ *   2. Resolve/atualiza o owner do deal no HubSpot (owner = o BDR sorteado).
+ *   3. Notifica o time no Slack, mencionando o BDR e o coordenador (gerente).
+ *   4. Grava o lead no banco (histórico para o dashboard).
  *
- * Os passos 2 e 3 são tratados de forma independente: se um falhar, o outro
- * ainda é tentado, e o chamador recebe um relatório com o que deu certo/errado
- * (em vez de perder o lead inteiro por causa de uma falha pontual).
+ * Os passos 2 e 3 são independentes: se um falhar, o outro ainda é tentado,
+ * e o chamador recebe um relatório com o que deu certo/errado.
  */
 async function distributeLead(lead) {
-  const team = pickNextTeam();
+  const { coordenador, bdr } = pickNextTeam();
   const dryRun = process.env.DRY_RUN === "true";
 
-  // Fora do DRY_RUN, não faz sentido chamar HubSpot/Slack de verdade com
-  // IDs placeholder — bloqueamos cedo com uma mensagem clara do que falta
-  // preencher. Em DRY_RUN, deixamos passar: é justamente o modo para
-  // visualizar o fluxo completo (round-robin, etapas, mensagens simuladas)
-  // antes de ter os dados reais dos times.
-  if (!dryRun && hasPlaceholders(team)) {
-    throw new Error(
-      `Time "${team.name}" ainda tem campos placeholder em src/config/teams.js. ` +
-        "Preencha hubspotOwnerId, slackChannelId, bdr e manager antes de usar em produção."
-    );
-  }
-
   const result = {
-    team: { id: team.id, name: team.name },
+    coordenador: { id: coordenador.id, nome: coordenador.nome },
+    bdr: { id: bdr.id, nome: bdr.nome },
     hubspot: null,
     slack: null,
     errors: [],
@@ -59,22 +69,32 @@ async function distributeLead(lead) {
       dealId: lead.dealId,
       email: lead.email,
     });
-    result.hubspot = await hubspotService.updateDealOwner(dealId, team.hubspotOwnerId);
+    result.hubspot = await hubspotService.updateDealOwner(dealId, bdr.hubspot_owner_id);
   } catch (err) {
     result.errors.push({ step: "hubspot", message: err.message });
   }
 
   try {
-    result.slack = await slackService.notifyTeam({
-      team,
-      lead,
-      dealId: dealId || "desconhecido",
-    });
+    result.slack = await slackService.notifyTeam({ coordenador, bdr, lead, dealId: dealId || "desconhecido" });
   } catch (err) {
     result.errors.push({ step: "slack", message: err.message });
   }
 
-  return result;
+  const leadId = repo.saveLead({
+    nome: lead.name,
+    empresa: lead.company,
+    email: lead.email,
+    form: lead.form,
+    dealId,
+    coordenadorId: coordenador.id,
+    bdrId: bdr.id,
+    hubspotOk: !!result.hubspot,
+    slackOk: !!result.slack,
+    dryRun,
+    erros: result.errors,
+  });
+
+  return { ...result, leadId };
 }
 
 module.exports = { distributeLead, pickNextTeam, peekNextTeam };

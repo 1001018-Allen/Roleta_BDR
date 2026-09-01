@@ -1,17 +1,29 @@
 require("dotenv").config();
 const express = require("express");
 
+const { db } = require("./db");
+const { seed } = require("./db/seed");
 const webhookRoutes = require("./routes/webhookRoutes");
 const testRoutes = require("./routes/testRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
+
+// Popula coordenadores/BDRs automaticamente se o banco ainda estiver vazio
+// (primeira execução). Rode `npm run seed` manualmente para reaplicar depois
+// de editar data/bdrs-seed.json.
+const totalCoordenadores = db.prepare("SELECT COUNT(*) AS n FROM coordenadores").get().n;
+if (totalCoordenadores === 0) {
+  seed();
+}
 
 const app = express();
 app.use(express.json());
 
 app.use("/webhook", webhookRoutes);
 app.use("/test", testRoutes);
+app.use("/dashboard", dashboardRoutes);
 
 app.get("/", (req, res) => {
-  res.json({ service: "roleta-bdr-webhook", status: "running" });
+  res.json({ service: "roleta-bdr-webhook", status: "running", dashboard: "/dashboard" });
 });
 
 // 404 para rotas não mapeadas

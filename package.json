@@ -4,8 +4,9 @@
   "description": "Webhook Express que recebe leads do HubSpot, distribui entre times em round-robin, atualiza o owner do deal no HubSpot e avisa o time no Slack.",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "seed": "node --disable-warning=ExperimentalWarning src/db/seed.js"
   },
   "license": "UNLICENSED",
   "dependencies": {

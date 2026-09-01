@@ -1,0 +1,33 @@
+{
+  "_rascunho": true,
+  "_nota": "Lista de BDRs e coordenadores AINDA NÃO É OFICIAL (confirmado pelo usuário em 01/09/2026). Serve só para desenhar a roleta e o dashboard. Quando a lista definitiva sair, substitua este arquivo e rode `npm run seed` de novo.",
+  "coordenadores": ["Allen", "Camila", "Welington"],
+  "bdrs": [
+    { "nome": "Danielly Santos Oliveira", "coordenador": "Allen" },
+    { "nome": "Danilo Emerson Rodrigues da Silva", "coordenador": "Camila" },
+    { "nome": "Elaine Cristina Ferreira", "coordenador": "Allen" },
+    { "nome": "Juliana Rodrigues da Silva", "coordenador": "Welington" },
+    { "nome": "Letícia da Silva Rodrigues", "coordenador": "Allen" },
+    { "nome": "Natalia Fumagalli", "coordenador": "Camila" },
+    { "nome": "Welington Luis Moreira", "coordenador": "Welington" },
+    { "nome": "Marina Meira", "coordenador": "Allen" },
+    { "nome": "Edgard Pena", "coordenador": "Welington" },
+    { "nome": "Wilson Farina Junior", "coordenador": "Camila" },
+    { "nome": "Lisa Maria Mateus Paiva Ramos da Silva", "coordenador": "Camila" },
+    { "nome": "Kevelly Victoria de Oliveira Martins", "coordenador": "Allen" },
+    { "nome": "Carolina Galvão", "coordenador": "Allen" },
+    { "nome": "Leonardo Nunes", "coordenador": "Allen" },
+    { "nome": "Daniela Marinho", "coordenador": "Welington" },
+    { "nome": "Elias Junior", "coordenador": "Allen" },
+    { "nome": "Iris Silva", "coordenador": "Welington" },
+    { "nome": "Gabrielle Andrade", "coordenador": "Welington" },
+    { "nome": "Caio Aparecido", "coordenador": "Welington" },
+    { "nome": "Gustavo Tomiatti", "coordenador": "Allen" },
+    { "nome": "Milena Nascimento", "coordenador": "Allen" },
+    { "nome": "Raquel Araujo", "coordenador": "Camila" },
+    { "nome": "João Souza", "coordenador": "Camila" },
+    { "nome": "Lucas Aldana", "coordenador": "Camila" },
+    { "nome": "Sabrina", "coordenador": "Welington" },
+    { "nome": "Felipe Pereira", "coordenador": "Camila" }
+  ]
+}

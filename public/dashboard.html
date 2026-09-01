@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Roleta BDR — Dashboard</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6; /* coordenador 1 (ex: Allen) */
+    --series-2:       #eb6834; /* coordenador 2 (ex: Camila) */
+    --series-3:       #1baf7a; /* coordenador 3 (ex: Welington) */
+    --status-good:    #0ca30c;
+    --status-critical:#d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-2:       #d95926;
+      --series-3:       #199e70;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page-plane);
+    color: var(--text-primary);
+  }
+  header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  .badge-rascunho {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--status-critical);
+    border: 1px solid var(--status-critical);
+    border-radius: 999px;
+    padding: 2px 10px;
+  }
+  main { padding: 24px 28px 64px; max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .tile .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .tile .value { font-size: 22px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .tile .sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+  section.card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  section.card h2 { font-size: 14px; margin: 0 0 14px; color: var(--text-primary); }
+
+  .legend { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  .bar-row { display: grid; grid-template-columns: 200px 1fr 40px; align-items: center; gap: 10px; height: 26px; position: relative; }
+  .bar-row .name { font-size: 12px; color: var(--text-secondary); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { position: relative; height: 14px; background: transparent; }
+  .bar-fill { position: absolute; top: 0; left: 0; height: 14px; border-radius: 4px; transition: width 0.2s ease; cursor: default; }
+  .bar-row .value { font-size: 12px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--gridline); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.02em; }
+  td { color: var(--text-secondary); }
+  td.strong { color: var(--text-primary); }
+  .status-ok { color: var(--status-good); font-weight: 600; }
+  .status-fail { color: var(--status-critical); font-weight: 600; }
+  .empty-state { color: var(--text-muted); font-size: 13px; padding: 12px 0; }
+  .dry-run-tag { font-size: 10px; color: var(--text-muted); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
+
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--text-primary);
+    color: var(--surface-1);
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    z-index: 10;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body class="viz-root">
+  <header>
+    <h1>🎡 Roleta BDR — Dashboard</h1>
+    <span class="badge-rascunho">Rascunho — dados de teste</span>
+  </header>
+
+  <main>
+    <div class="tiles" id="tiles"></div>
+
+    <section class="card">
+      <h2>Leads por coordenador</h2>
+      <div id="chart-coordenador"></div>
+    </section>
+
+    <section class="card">
+      <h2>Leads por BDR</h2>
+      <div class="legend" id="legend-bdr"></div>
+      <div id="chart-bdr"></div>
+    </section>
+
+    <section class="card">
+      <h2>Histórico de leads distribuídos</h2>
+      <div id="tabela-leads"></div>
+    </section>
+  </main>
+
+  <div id="tooltip"></div>
+
+<script>
+  const SERIES_COLORS = ["var(--series-1)", "var(--series-2)", "var(--series-3)"];
+  const tooltip = document.getElementById("tooltip");
+
+  function showTooltip(evt, text) {
+    tooltip.textContent = text;
+    tooltip.style.left = evt.clientX + 12 + "px";
+    tooltip.style.top = evt.clientY + 12 + "px";
+    tooltip.style.opacity = "1";
+  }
+  function hideTooltip() { tooltip.style.opacity = "0"; }
+
+  function colorForCoordenadorId(coordenadorOrdemIndex) {
+    return SERIES_COLORS[coordenadorOrdemIndex % SERIES_COLORS.length];
+  }
+
+  function renderBarChart(container, rows, { colorFn, labelFn, valueFn, tooltipFn }) {
+    const max = Math.max(1, ...rows.map(valueFn));
+    container.innerHTML = "";
+    rows.forEach((row) => {
+      const value = valueFn(row);
+      const pct = (value / max) * 100;
+
+      const wrap = document.createElement("div");
+      wrap.className = "bar-row";
+
+      const name = document.createElement("div");
+      name.className = "name";
+      name.textContent = labelFn(row);
+
+      const track = document.createElement("div");
+      track.className = "bar-track";
+      const fill = document.createElement("div");
+      fill.className = "bar-fill";
+      fill.style.width = pct + "%";
+      fill.style.background = colorFn(row);
+      fill.addEventListener("mousemove", (e) => showTooltip(e, tooltipFn(row)));
+      fill.addEventListener("mouseleave", hideTooltip);
+      track.appendChild(fill);
+
+      const value_ = document.createElement("div");
+      value_.className = "value";
+      value_.textContent = value;
+
+      wrap.appendChild(name);
+      wrap.appendChild(track);
+      wrap.appendChild(value_);
+      container.appendChild(wrap);
+    });
+
+    if (rows.length === 0) {
+      container.innerHTML = '<div class="empty-state">Sem dados ainda.</div>';
+    }
+  }
+
+  async function load() {
+    const [state, stats, leadsResp] = await Promise.all([
+      fetch("/dashboard/api/state").then((r) => r.json()),
+      fetch("/dashboard/api/stats").then((r) => r.json()),
+      fetch("/dashboard/api/leads?limit=50").then((r) => r.json()),
+    ]);
+
+    // Tiles
+    const totalLeads = stats.porCoordenador.reduce((acc, c) => acc + c.total, 0);
+    document.getElementById("tiles").innerHTML = `
+      <div class="tile">
+        <div class="label">Próximo coordenador</div>
+        <div class="value">${state.proximoCoordenador}</div>
+      </div>
+      <div class="tile">
+        <div class="label">Próximo BDR</div>
+        <div class="value">${state.proximoBdr}</div>
+      </div>
+      <div class="tile">
+        <div class="label">Total de leads distribuídos</div>
+        <div class="value">${totalLeads}</div>
+        <div class="sub">desde que o banco foi criado</div>
+      </div>
+    `;
+
+    // Chart: por coordenador
+    const coordenadorIndexById = {};
+    stats.porCoordenador.forEach((c, i) => (coordenadorIndexById[c.id] = i));
+
+    renderBarChart(document.getElementById("chart-coordenador"), stats.porCoordenador, {
+      colorFn: (row) => colorForCoordenadorId(coordenadorIndexById[row.id]),
+      labelFn: (row) => row.nome,
+      valueFn: (row) => row.total,
+      tooltipFn: (row) => `${row.nome}: ${row.total} lead(s)`,
+    });
+
+    // Legend por coordenador (reaproveitado para o gráfico de BDR)
+    document.getElementById("legend-bdr").innerHTML = stats.porCoordenador
+      .map(
+        (c, i) =>
+          `<span class="legend-item"><span class="legend-dot" style="background:${colorForCoordenadorId(i)}"></span>${c.nome}</span>`
+      )
+      .join("");
+
+    // Chart: por BDR, ordenado por total desc
+    const porBdrOrdenado = [...stats.porBdr].sort((a, b) => b.total - a.total);
+    renderBarChart(document.getElementById("chart-bdr"), porBdrOrdenado, {
+      colorFn: (row) => colorForCoordenadorId(coordenadorIndexById[row.coordenador_id]),
+      labelFn: (row) => row.nome,
+      valueFn: (row) => row.total,
+      tooltipFn: (row) => `${row.nome} (${row.coordenador_nome}): ${row.total} lead(s)`,
+    });
+
+    // Tabela de histórico
+    const leads = leadsResp.leads;
+    const tabela = document.getElementById("tabela-leads");
+    if (leads.length === 0) {
+      tabela.innerHTML =
+        '<div class="empty-state">Nenhum lead distribuído ainda. Use <code>POST /test/simulate-lead</code> (com DRY_RUN=true) para gerar dados de exemplo.</div>';
+    } else {
+      tabela.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Quando</th>
+              <th>Nome</th>
+              <th>Empresa</th>
+              <th>Coordenador</th>
+              <th>BDR</th>
+              <th>HubSpot</th>
+              <th>Slack</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${leads
+              .map(
+                (l) => `
+              <tr>
+                <td>${new Date(l.criado_em).toLocaleString("pt-BR")}</td>
+                <td class="strong">${l.nome}${l.dry_run ? ' <span class="dry-run-tag">dry-run</span>' : ""}</td>
+                <td>${l.empresa}</td>
+                <td>${l.coordenador_nome ?? "—"}</td>
+                <td>${l.bdr_nome ?? "—"}</td>
+                <td class="${l.hubspot_ok ? "status-ok" : "status-fail"}">${l.hubspot_ok ? "OK" : "Falhou"}</td>
+                <td class="${l.slack_ok ? "status-ok" : "status-fail"}">${l.slack_ok ? "OK" : "Falhou"}</td>
+              </tr>`
+              )
+              .join("")}
+          </tbody>
+        </table>
+      `;
+    }
+  }
+
+  load();
+  setInterval(load, 5000);
+</script>
+</body>
+</html>

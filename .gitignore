@@ -2,6 +2,7 @@ node_modules/
 .env
 npm-debug.log*
 
-# Estado do round-robin é gerado em runtime; não versionamos os valores reais,
-# só mantemos a pasta com um arquivo inicial de exemplo (veja data/README.md).
+# Banco SQLite é gerado/populado em runtime (via seed a partir de
+# data/bdrs-seed.json); não versionamos o arquivo de dados em si.
+/data/roleta.db
 /data/round-robin-state.json
