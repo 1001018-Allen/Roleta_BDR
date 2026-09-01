@@ -46,7 +46,18 @@ db.exec(`
     hubspot_ok INTEGER NOT NULL DEFAULT 0,
     slack_ok INTEGER NOT NULL DEFAULT 0,
     dry_run INTEGER NOT NULL DEFAULT 0,
-    erros TEXT   -- JSON com a lista de erros por etapa, se houver
+    erros TEXT,           -- JSON com a lista de erros por etapa, se houver
+    origem TEXT NOT NULL DEFAULT 'manual',  -- 'manual' (webhook/test) ou 'slack-mkt-sales-leads'
+    ja_atribuido INTEGER NOT NULL DEFAULT 0, -- 1 = o deal já tinha owner no HubSpot; não passou pela roleta
+    owner_existente_id TEXT,   -- hubspot_owner_id encontrado quando ja_atribuido = 1
+    segmento TEXT              -- ex: 'LARGE/ENTERPRISE', 'MID MARKET', 'KEY ACCOUNT' (quando vier do Slack)
+  );
+
+  -- Estado do "ingestor" que varre o canal do Slack em busca de novos leads
+  -- (ex: timestamp da última mensagem já processada, por canal).
+  CREATE TABLE IF NOT EXISTS ingest_state (
+    chave TEXT PRIMARY KEY,
+    valor TEXT
   );
 `);
 

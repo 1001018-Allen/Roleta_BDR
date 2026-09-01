@@ -18,10 +18,17 @@ function getBdrById(id) {
   return db.prepare("SELECT * FROM bdrs WHERE id = ?").get(id);
 }
 
+/** Usado para descobrir se um hubspot_owner_id já existente é um dos nossos BDRs conhecidos. */
+function getBdrByHubspotOwnerId(ownerId) {
+  return db.prepare("SELECT * FROM bdrs WHERE hubspot_owner_id = ?").get(ownerId);
+}
+
 const insertLead = db.prepare(`
   INSERT INTO leads
-    (nome, empresa, email, form, deal_id, coordenador_id, bdr_id, hubspot_ok, slack_ok, dry_run, erros)
-  VALUES (@nome, @empresa, @email, @form, @deal_id, @coordenador_id, @bdr_id, @hubspot_ok, @slack_ok, @dry_run, @erros)
+    (nome, empresa, email, form, deal_id, coordenador_id, bdr_id, hubspot_ok, slack_ok,
+     dry_run, erros, origem, ja_atribuido, owner_existente_id, segmento)
+  VALUES (@nome, @empresa, @email, @form, @deal_id, @coordenador_id, @bdr_id, @hubspot_ok, @slack_ok,
+          @dry_run, @erros, @origem, @ja_atribuido, @owner_existente_id, @segmento)
 `);
 
 function saveLead(lead) {
@@ -31,12 +38,16 @@ function saveLead(lead) {
     email: lead.email,
     form: lead.form,
     deal_id: lead.dealId || null,
-    coordenador_id: lead.coordenadorId,
-    bdr_id: lead.bdrId,
+    coordenador_id: lead.coordenadorId || null,
+    bdr_id: lead.bdrId || null,
     hubspot_ok: lead.hubspotOk ? 1 : 0,
     slack_ok: lead.slackOk ? 1 : 0,
     dry_run: lead.dryRun ? 1 : 0,
     erros: lead.erros && lead.erros.length ? JSON.stringify(lead.erros) : null,
+    origem: lead.origem || "manual",
+    ja_atribuido: lead.jaAtribuido ? 1 : 0,
+    owner_existente_id: lead.ownerExistenteId || null,
+    segmento: lead.segmento || null,
   });
   return info.lastInsertRowid;
 }
@@ -83,13 +94,28 @@ function countLeadsByCoordenador() {
     .all();
 }
 
+function getIngestState(chave) {
+  const row = db.prepare("SELECT valor FROM ingest_state WHERE chave = ?").get(chave);
+  return row ? row.valor : null;
+}
+
+function setIngestState(chave, valor) {
+  db.prepare(
+    `INSERT INTO ingest_state (chave, valor) VALUES (?, ?)
+     ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor`
+  ).run(chave, valor);
+}
+
 module.exports = {
   listCoordenadores,
   listBdrsByCoordenador,
   getCoordenadorById,
   getBdrById,
+  getBdrByHubspotOwnerId,
   saveLead,
   listRecentLeads,
   countLeadsByBdr,
   countLeadsByCoordenador,
+  getIngestState,
+  setIngestState,
 };

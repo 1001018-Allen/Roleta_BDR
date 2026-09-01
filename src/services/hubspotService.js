@@ -97,6 +97,29 @@ async function resolveDealId({ dealId, email }) {
 }
 
 /**
+ * Consulta o owner ATUAL de um deal no HubSpot (hubspot_owner_id).
+ * Retorna `null` se o deal não tiver nenhum owner atribuído ainda.
+ *
+ * Usado para checar "esse lead já tem alguém trabalhando?" antes de rodar a
+ * roleta — se já tiver, o lead deve ir pra essa mesma pessoa, sem consumir
+ * a vez de ninguém no round-robin.
+ */
+async function getDealOwnerId(dealId) {
+  if (DRY_RUN) {
+    console.log(`[DRY_RUN] HubSpot: consultaria owner atual do deal ${dealId} (nenhum, simulado)`);
+    return null;
+  }
+
+  const client = getClient();
+  const { data } = await client.get(`/crm/v3/objects/deals/${dealId}`, {
+    params: { properties: "hubspot_owner_id" },
+  });
+
+  const ownerId = data.properties && data.properties.hubspot_owner_id;
+  return ownerId || null;
+}
+
+/**
  * Atualiza o owner (BDR/time responsável) de um deal no HubSpot.
  */
 async function updateDealOwner(dealId, ownerId) {
@@ -114,4 +137,4 @@ async function updateDealOwner(dealId, ownerId) {
   return data;
 }
 
-module.exports = { resolveDealId, updateDealOwner };
+module.exports = { resolveDealId, updateDealOwner, getDealOwnerId };

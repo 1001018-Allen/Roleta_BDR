@@ -268,6 +268,7 @@
           <thead>
             <tr>
               <th>Quando</th>
+              <th>Origem</th>
               <th>Nome</th>
               <th>Empresa</th>
               <th>Coordenador</th>
@@ -282,10 +283,11 @@
                 (l) => `
               <tr>
                 <td>${new Date(l.criado_em).toLocaleString("pt-BR")}</td>
+                <td>${l.origem === "slack-mkt-sales-leads" ? "🎯 Slack" : "✋ manual"}${l.segmento ? ` <span class="dry-run-tag">${l.segmento}</span>` : ""}</td>
                 <td class="strong">${l.nome}${l.dry_run ? ' <span class="dry-run-tag">dry-run</span>' : ""}</td>
                 <td>${l.empresa}</td>
                 <td>${l.coordenador_nome ?? "—"}</td>
-                <td>${l.bdr_nome ?? "—"}</td>
+                <td>${l.bdr_nome ?? "—"}${l.ja_atribuido ? ' <span class="dry-run-tag">já atribuído, não passou na roleta</span>' : ""}</td>
                 <td class="${l.hubspot_ok ? "status-ok" : "status-fail"}">${l.hubspot_ok ? "OK" : "Falhou"}</td>
                 <td class="${l.slack_ok ? "status-ok" : "status-fail"}">${l.slack_ok ? "OK" : "Falhou"}</td>
               </tr>`

@@ -6,6 +6,7 @@ const { seed } = require("./db/seed");
 const webhookRoutes = require("./routes/webhookRoutes");
 const testRoutes = require("./routes/testRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const slackChannelIngestService = require("./services/slackChannelIngestService");
 
 // Popula coordenadores/BDRs automaticamente se o banco ainda estiver vazio
 // (primeira execução). Rode `npm run seed` manualmente para reaplicar depois
@@ -53,6 +54,20 @@ process.on("uncaughtException", (err) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Roleta BDR webhook rodando na porta ${PORT} (DRY_RUN=${process.env.DRY_RUN})`);
+
+  // Liga o polling do canal #mkt-sales-leads (fonte real dos leads inbound)
+  // se SLACK_POLL_ENABLED=true. Precisa de SLACK_BOT_TOKEN com permissão de
+  // leitura no canal (e o bot precisa estar adicionado a ele, já que é
+  // privado) — sem isso, cada tentativa de poll só loga um aviso e pula.
+  if (process.env.SLACK_POLL_ENABLED === "true") {
+    const intervalMs = Number(process.env.SLACK_POLL_INTERVAL_MS) || 30000;
+    slackChannelIngestService.startPolling(intervalMs);
+  } else {
+    console.log(
+      "[slack-ingest] polling desligado (SLACK_POLL_ENABLED != true) — " +
+        "leads só entram via /webhook/hubspot-lead ou /test/simulate-lead."
+    );
+  }
 });
 
 module.exports = app;

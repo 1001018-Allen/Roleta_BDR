@@ -17,46 +17,102 @@ que alimenta um **dashboard de visualização**.
 
 ## Como funciona (fluxo)
 
+A origem real dos leads **não é um webhook do HubSpot** — é o app oficial do
+HubSpot que já posta automaticamente no canal do Slack `#mkt-sales-leads`
+("Canal de notificações do Hubspot para geração de leads e deals") toda vez
+que um lead inbound novo entra. Cada mensagem tem esse formato:
+
 ```
-HubSpot (form inbound) --workflow/webhook--> POST /webhook/hubspot-lead
-                                                     │
-                                                     ▼
-                                    1. Valida payload (name, company, email, form)
-                                                     │
-                                                     ▼
-                       2. Roleta em 2 níveis (persistida no SQLite):
-                          a) sorteia o próximo COORDENADOR (Allen → Camila → Welington → Allen...)
-                          b) dentro do time daquele coordenador, sorteia o próximo BDR
-                                                     │
-                                     ┌───────────────┴───────────────┐
-                                     ▼                                ▼
-                    3a. Resolve o dealId e atualiza      3b. Envia mensagem no canal
-                        hubspot_owner_id no HubSpot           do Slack do time,
-                        (owner = o BDR sorteado)              mencionando @BDR e @coordenador
-                                     │                                │
-                                     └───────────────┬────────────────┘
-                                                      ▼
-                                  4. Grava o lead no SQLite (data/roleta.db)
-                                     → alimenta o dashboard em /dashboard
+LARGE/ENTERPRISE — Chegou um novo lead inbound! 🚀
+
+*First Name*: Najla
+*Company Name*:
+*Email*: najla@empresa.com
+*Quantos colaboradores sua empresa tem?*: 1.001 - 5.000
+*GMV mensal*: De R$ 100 mil a R$ 399 mil por mês
+*Original Source*:
+*Origem da conversão*: Leadster
 ```
 
-Os passos 3a e 3b são independentes: se um falhar (ex: token do Slack
-inválido), o outro ainda é tentado, e a resposta HTTP inclui um relatório de
-erros por etapa (`errors: [{ step, message }]`) em vez de perder o lead
-inteiro por causa de uma falha pontual. O lead é salvo no banco de qualquer
-forma, junto com o que deu certo/errado.
+O canal recebe leads de vários segmentos (`MID MARKET`, `KEY ACCOUNT`,
+`LARGE/ENTERPRISE`) — **só nos interessa o `LARGE/ENTERPRISE`**, os outros
+são ignorados.
+
+```
+#mkt-sales-leads (Slack)
+  → app do HubSpot posta "LARGE/ENTERPRISE — Chegou um novo lead inbound!"
+                                                     │
+                                                     ▼
+        1. Nosso serviço lê o canal periodicamente (polling) e faz o
+           parsing do texto do "attachment" (nome, empresa, e-mail, ...)
+                                                     │
+                                                     ▼
+        2. Resolve o deal no HubSpot (pelo e-mail) e CHECA SE JÁ TEM OWNER
+                                                     │
+                        ┌────────────────────────────┴────────────────────────────┐
+                        ▼ já tem owner                                            ▼ sem owner
+        3a. NÃO roda a roleta (não consome a vez de           3b. Roleta em 2 níveis (persistida no SQLite):
+            ninguém). Se o owner já é um BDR conhecido,           a) sorteia o próximo COORDENADOR
+            manda o aviso pra ele mesmo, sem tocar no                (Allen → Camila → Welington → Allen...)
+            HubSpot (o dado já estava certo).                     b) dentro do time, sorteia o próximo BDR
+                                                                    → atualiza hubspot_owner_id no HubSpot
+                        └────────────────────────────┬────────────────────────────┘
+                                                      ▼
+                4. Avisa o time no Slack (canal do coordenador), mencionando @BDR e @coordenador
+                                                      ▼
+                5. Grava o lead no SQLite (data/roleta.db) → alimenta o dashboard em /dashboard
+```
+
+Falhas em HubSpot e Slack são independentes: se uma etapa falhar, a outra
+ainda é tentada, e o resultado inclui um relatório de erros por etapa
+(`errors: [{ step, message }]`) em vez de perder o lead inteiro por causa de
+uma falha pontual. O lead é salvo no banco de qualquer forma.
+
+> O endpoint `POST /webhook/hubspot-lead` continua existindo (útil pra
+> testar manualmente ou se um dia vocês configurarem um workflow real do
+> HubSpot chamando ele), mas **em produção a entrada esperada é o polling do
+> Slack**, não esse webhook.
 
 ### Como o `dealId` é resolvido
 
 O HubSpot já cria o negócio (deal) automaticamente para o lead inbound. O
 serviço tenta, nessa ordem:
 
-1. Usar `dealId` se ele já vier no payload do webhook (recomendado —
-   configure o workflow do HubSpot para incluir o ID do negócio recém-criado).
-2. Caso não venha, busca o contato pelo `email` e pega o deal mais recente
-   associado a ele.
+1. Usar `dealId` se ele já vier explícito (só acontece hoje via
+   `/webhook/hubspot-lead` manual/teste).
+2. Buscar o contato pelo `email` (extraído da mensagem do Slack) e pegar o
+   deal mais recente associado a ele — é o caminho normal em produção.
 
 Isso está implementado em `src/services/hubspotService.js` (`resolveDealId`).
+
+### Checagem de "esse lead já tem dono?"
+
+Antes de rodar a roleta, o serviço consulta o `hubspot_owner_id` atual do
+deal (`hubspotService.getDealOwnerId`):
+
+- **Já tem owner:** a roleta **não é acionada** (nenhum índice avança —
+  nem o do coordenador, nem o do BDR). Se esse owner bate com um dos nossos
+  BDRs cadastrados, ainda mandamos o aviso no Slack pra ele (pra manter
+  visibilidade), só que sem reescrever nada no HubSpot. Se o owner for
+  alguém fora da nossa lista, só registramos no banco (`ja_atribuido=1`,
+  `owner_existente_id`) sem notificar (não sabemos em qual canal avisar).
+- **Sem owner:** segue o fluxo normal — roda a roleta, atualiza o
+  `hubspot_owner_id` e notifica.
+
+Lógica em `src/services/leadDistributionService.js` (`distributeLead`).
+
+### Ingestão automática do canal do Slack
+
+`src/services/slackChannelIngestService.js` varre `#mkt-sales-leads`
+periodicamente via `conversations.history` da Slack Web API, filtra só as
+mensagens `LARGE/ENTERPRISE — Chegou um novo lead inbound!`, faz o parsing
+(`src/services/leadMessageParser.js`) e chama `distributeLead` pra cada lead
+novo. O timestamp da última mensagem processada fica salvo na tabela
+`ingest_state` (não reprocessa a mesma mensagem duas vezes).
+
+Ligado via `SLACK_POLL_ENABLED=true` no `.env` (default: desligado). Ver
+"Variáveis de ambiente" abaixo — **inclui um requisito operacional
+importante: o bot do Slack precisa ser adicionado ao canal**, que é privado.
 
 ### Roleta em 2 níveis
 
@@ -82,7 +138,9 @@ Tabelas:
 - `bdrs` (nome, coordenador_id, slack_user_id, hubspot_owner_id, ordem)
 - `round_robin_state` (posição atual da roleta, por nível)
 - `leads` (histórico: nome, empresa, email, form, deal_id, coordenador/BDR
-  sorteados, se HubSpot/Slack deram certo, se foi dry-run, erros)
+  sorteados, se HubSpot/Slack deram certo, se foi dry-run, erros, origem,
+  se já estava atribuído antes de chegar aqui)
+- `ingest_state` (timestamp da última mensagem processada no polling do Slack)
 
 ### Seed / configuração de coordenadores e BDRs
 
@@ -115,6 +173,11 @@ confirmada manualmente pelo usuário nos casos ambíguos (nomes repetidos).
   "placeholder" (`#TODO-canal-<coordenador>`) só pra deixar claro nos logs
   em `DRY_RUN` — **isso vai falhar de verdade fora do DRY_RUN** até um
   canal real ser criado e o ID preenchido aqui.
+- **Hospedagem/produção ainda não decidida.** Todo o desenvolvimento até
+  agora rodou só localmente/nesta sessão. Pra ligar o `SLACK_POLL_ENABLED`
+  de verdade e receber leads reais, o serviço precisa rodar em algum lugar
+  de forma contínua (não precisa de URL pública, já que agora é polling e
+  não webhook — mas precisa continuar rodando 24/7).
 
 ## Dashboard de visualização
 
@@ -138,12 +201,24 @@ PORT=3000
 HUBSPOT_TOKEN=...      # Private App token do HubSpot
 SLACK_BOT_TOKEN=xoxb-...
 DRY_RUN=true           # true = não chama HubSpot/Slack de verdade, só loga
+
+SLACK_POLL_ENABLED=false        # true = liga o polling do #mkt-sales-leads
+SLACK_POLL_INTERVAL_MS=30000
+SLACK_LEADS_CHANNEL_ID=C04365S730B   # #mkt-sales-leads
+SLACK_LEAD_SEGMENT=LARGE/ENTERPRISE  # ignora MID MARKET / KEY ACCOUNT
 ```
 
 `DRY_RUN=true` é o jeito recomendado de **entender e validar a lógica**
 antes de ter os tokens e os dados reais dos times: a roleta funciona
 normalmente e os serviços de HubSpot/Slack apenas logam no console o que
 fariam, em vez de chamar as APIs. O dashboard funciona igual nos dois modos.
+
+⚠️ **`SLACK_BOT_TOKEN` precisa ter permissão de leitura no
+`#mkt-sales-leads` e o bot precisa estar ADICIONADO a esse canal** (ele é
+privado) — sem isso o polling falha com `not_in_channel`. Isso é
+independente do `DRY_RUN`: mesmo em modo dry-run, o polling precisa
+conseguir *ler* o canal pra ter o que simular (só as escritas em
+HubSpot/Slack são simuladas).
 
 ## Rodando
 
