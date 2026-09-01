@@ -1,0 +1,16 @@
+{
+  "name": "roleta-bdr-webhook",
+  "version": "1.0.0",
+  "description": "Webhook Express que recebe leads do HubSpot, distribui entre times em round-robin, atualiza o owner do deal no HubSpot e avisa o time no Slack.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}

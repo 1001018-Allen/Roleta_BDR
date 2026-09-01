@@ -1,0 +1,7 @@
+node_modules/
+.env
+npm-debug.log*
+
+# Estado do round-robin é gerado em runtime; não versionamos os valores reais,
+# só mantemos a pasta com um arquivo inicial de exemplo (veja data/README.md).
+/data/round-robin-state.json
