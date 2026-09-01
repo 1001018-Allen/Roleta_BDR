@@ -8,9 +8,12 @@ que alimenta um **dashboard de visualização**.
 
 > ⚠️ **Status atual: rascunho / desenho.** A lista de coordenadores e BDRs em
 > `data/bdrs-seed.json` foi passada pelo usuário em 01/09/2026 como
-> **não-oficial**, só para prototiparmos a lógica e o dashboard. Owner IDs do
-> HubSpot, IDs de usuário/canal do Slack ainda não existem — tudo roda em
-> `DRY_RUN=true` até isso ser confirmado.
+> **não-oficial**, só para prototiparmos a lógica e o dashboard. Os
+> `slack_user_id`/`hubspot_owner_id` de quase todo mundo já foram resolvidos
+> (buscando por nome no Slack/HubSpot da VOLL), mas faltam os
+> `slack_channel_id` dos 3 times (canais ainda não existem) e há 1-2 pontas
+> soltas — veja "Pendências conhecidas" abaixo. Continua tudo em
+> `DRY_RUN=true` até isso fechar.
 
 ## Como funciona (fluxo)
 
@@ -94,9 +97,24 @@ npm run seed
 apagar o histórico de leads já distribuídos. Na primeira execução do
 servidor (`npm start`), se o banco estiver vazio, o seed roda sozinho.
 
-Depois de ter os dados reais, preencha direto no banco (ou estenda o seed
-para ler `hubspot_owner_id` / `slack_user_id` / `slack_channel_id` do JSON)
-antes de sair do `DRY_RUN`.
+`slack_user_id` e `hubspot_owner_id` de cada BDR/coordenador já vêm
+resolvidos no JSON — a maioria foi encontrada automaticamente buscando por
+nome nos conectores do Slack e do HubSpot (workspace `@govoll.com`) e
+confirmada manualmente pelo usuário nos casos ambíguos (nomes repetidos).
+
+**Pendências conhecidas** (ver comentários `_obs` no próprio JSON):
+- `Juliana Rodrigues da Silva`: Slack confirmado, mas o `hubspot_owner_id`
+  é uma estimativa (mesma faixa numérica dos demais BDRs) — vale confirmar
+  no HubSpot antes de ir pra produção.
+- Coordenador `Welington` (na real, "Wellington Ferreira" no Slack): não
+  tem `hubspot_owner_id` porque não existe nenhum owner com esse nome
+  cadastrado no HubSpot ainda — só faz sentido se ele também for dono de
+  deals diretamente.
+- `slack_channel_id` de todos os 3 coordenadores está `null`: os canais de
+  time ainda não existem no Slack. Enquanto isso, o serviço usa um canal
+  "placeholder" (`#TODO-canal-<coordenador>`) só pra deixar claro nos logs
+  em `DRY_RUN` — **isso vai falhar de verdade fora do DRY_RUN** até um
+  canal real ser criado e o ID preenchido aqui.
 
 ## Dashboard de visualização
 
