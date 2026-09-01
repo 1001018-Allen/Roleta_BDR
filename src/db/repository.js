@@ -26,9 +26,11 @@ function getBdrByHubspotOwnerId(ownerId) {
 const insertLead = db.prepare(`
   INSERT INTO leads
     (nome, empresa, email, form, deal_id, coordenador_id, bdr_id, hubspot_ok, slack_ok,
-     dry_run, erros, origem, ja_atribuido, owner_existente_id, segmento)
+     dry_run, erros, origem, ja_atribuido, owner_existente_id, owner_existente_nome, segmento,
+     criado_em)
   VALUES (@nome, @empresa, @email, @form, @deal_id, @coordenador_id, @bdr_id, @hubspot_ok, @slack_ok,
-          @dry_run, @erros, @origem, @ja_atribuido, @owner_existente_id, @segmento)
+          @dry_run, @erros, @origem, @ja_atribuido, @owner_existente_id, @owner_existente_nome, @segmento,
+          COALESCE(@criado_em, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))
 `);
 
 function saveLead(lead) {
@@ -47,7 +49,9 @@ function saveLead(lead) {
     origem: lead.origem || "manual",
     ja_atribuido: lead.jaAtribuido ? 1 : 0,
     owner_existente_id: lead.ownerExistenteId || null,
+    owner_existente_nome: lead.ownerExistenteNome || null,
     segmento: lead.segmento || null,
+    criado_em: lead.criadoEm || null,
   });
   return info.lastInsertRowid;
 }

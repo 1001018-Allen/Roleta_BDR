@@ -211,7 +211,11 @@
     ]);
 
     // Tiles
-    const totalLeads = stats.porCoordenador.reduce((acc, c) => acc + c.total, 0);
+    const todosLeads = leadsResp.leads;
+    const totalLeads = todosLeads.length;
+    const doNossoTime = todosLeads.filter((l) => l.bdr_id).length;
+    const pendentes = todosLeads.filter((l) => !l.ja_atribuido).length;
+    const foraDoTime = todosLeads.filter((l) => l.ja_atribuido && !l.bdr_id).length;
     document.getElementById("tiles").innerHTML = `
       <div class="tile">
         <div class="label">Próximo coordenador</div>
@@ -222,9 +226,9 @@
         <div class="value">${state.proximoBdr}</div>
       </div>
       <div class="tile">
-        <div class="label">Total de leads distribuídos</div>
+        <div class="label">Leads vistos no total</div>
         <div class="value">${totalLeads}</div>
-        <div class="sub">desde que o banco foi criado</div>
+        <div class="sub">${doNossoTime} do nosso time · ${pendentes} pendentes (sem owner) · ${foraDoTime} de fora da lista</div>
       </div>
     `;
 
@@ -283,13 +287,15 @@
                 (l) => `
               <tr>
                 <td>${new Date(l.criado_em).toLocaleString("pt-BR")}</td>
-                <td>${l.origem === "slack-mkt-sales-leads" ? "🎯 Slack" : "✋ manual"}${l.segmento ? ` <span class="dry-run-tag">${l.segmento}</span>` : ""}</td>
+                <td>${l.origem && l.origem.startsWith("slack-mkt-sales-leads") ? "🎯 Slack" : "✋ manual"}${l.segmento ? ` <span class="dry-run-tag">${l.segmento}</span>` : ""}</td>
                 <td class="strong">${l.nome}${l.dry_run ? ' <span class="dry-run-tag">dry-run</span>' : ""}</td>
                 <td>${l.empresa}</td>
                 <td>${l.coordenador_nome ?? "—"}</td>
                 <td>${l.bdr_nome ?? "—"}${l.ja_atribuido ? ' <span class="dry-run-tag">já atribuído, não passou na roleta</span>' : ""}</td>
                 <td class="${l.hubspot_ok ? "status-ok" : "status-fail"}">${l.hubspot_ok ? "OK" : "Falhou"}</td>
-                <td class="${l.slack_ok ? "status-ok" : "status-fail"}">${l.slack_ok ? "OK" : "Falhou"}</td>
+                <td class="${l.origem === "slack-mkt-sales-leads-backfill" ? "" : l.slack_ok ? "status-ok" : "status-fail"}">${
+                  l.origem === "slack-mkt-sales-leads-backfill" ? "— (histórico, não enviamos)" : l.slack_ok ? "OK" : "Falhou"
+                }</td>
               </tr>`
               )
               .join("")}

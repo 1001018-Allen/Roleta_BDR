@@ -6,3 +6,10 @@ npm-debug.log*
 # data/bdrs-seed.json); não versionamos o arquivo de dados em si.
 /data/roleta.db
 /data/round-robin-state.json
+
+# Dados reais de leads/clientes (e-mails de prospects) usados só localmente
+# pelo backfill — nunca versionar. Veja data/backfill-real-leads.json (_nota).
+/data/backfill-real-leads.json
+
+# Snapshots estáticos do dashboard (podem conter dados reais de leads).
+/dashboard-snapshot*.html
