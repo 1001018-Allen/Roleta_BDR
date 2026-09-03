@@ -220,6 +220,52 @@ independente do `DRY_RUN`: mesmo em modo dry-run, o polling precisa
 conseguir *ler* o canal pra ter o que simular (só as escritas em
 HubSpot/Slack são simuladas).
 
+## Checklist para ativar com a API real do HubSpot
+
+O backend já está pronto pro token real — não precisa mudar nenhum código,
+só configurar. Passo a passo:
+
+1. **Criar a Private App no HubSpot**: Configurações → Integrações →
+   Private Apps → Criar uma private app. Na aba "Scopes", marque:
+   - `crm.objects.contacts.read`
+   - `crm.objects.deals.read`
+   - `crm.objects.deals.write`
+2. Copiar o token gerado (começa com `pat-`) para `HUBSPOT_TOKEN` no `.env`.
+3. Rodar `npm run check:hubspot` — confirma que o token é válido e tem os
+   escopos de leitura, sem escrever nada no HubSpot. Passe um e-mail real de
+   um contato existente como argumento pra testar o fluxo completo:
+   ```bash
+   npm run check:hubspot -- contato-real@empresa.com
+   ```
+   Se algum check falhar, a mensagem já vem com a categoria do erro que o
+   HubSpot devolveu (token inválido, escopo faltando, etc.) — corrija antes
+   de seguir.
+4. Fazer o mesmo para o Slack: gerar o `SLACK_BOT_TOKEN` (escopos
+   `chat:write` + `channels:history`/`groups:history`) e **adicionar o bot
+   ao canal `#mkt-sales-leads`**.
+5. Preencher os `TODO_...` que ainda faltam em `data/bdrs-seed.json`
+   (`slack_channel_id` dos 3 coordenadores — os canais de time ainda não
+   existem) e rodar `npm run seed`.
+6. Trocar `DRY_RUN=true` para `DRY_RUN=false` no `.env`.
+7. Testar ponta a ponta com um lead de mentira antes de confiar 100%:
+   `POST /test/simulate-lead` com um e-mail real de teste, e conferir no
+   HubSpot/Slack que o resultado é o esperado.
+8. Só depois disso, ligar `SLACK_POLL_ENABLED=true` pra começar a processar
+   leads reais automaticamente.
+
+> ⚠️ **Limitação conhecida desta sessão de desenvolvimento**: o ambiente
+> onde este código foi escrito (Claude Code) tem uma política de rede que
+> **bloqueia chamadas HTTPS diretas para `api.hubapi.com`** (e provavelmente
+> `slack.com` também) — por isso não foi possível rodar um teste ponta a
+> ponta *ao vivo* contra a API real durante o desenvolvimento, só via
+> conectores MCP (que usam um canal diferente). O código segue os endpoints
+> documentados oficiais do HubSpot (REST API v3/v4) e a lógica foi validada
+> com dados reais via MCP, mas o primeiro teste de verdade com
+> `DRY_RUN=false` só vai acontecer no ambiente onde vocês realmente rodarem
+> o serviço (que não deve ter essa restrição). É exatamente pra isso que
+> serve o passo 3 acima (`npm run check:hubspot`) — rode-o assim que subir
+> em produção.
+
 ## Rodando
 
 ```bash

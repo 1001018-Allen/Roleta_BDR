@@ -7,11 +7,30 @@ function getClient() {
   if (!DRY_RUN && !token) {
     throw new Error("HUBSPOT_TOKEN não configurado no ambiente");
   }
-  return axios.create({
+  const client = axios.create({
     baseURL: "https://api.hubapi.com",
     headers: { Authorization: `Bearer ${token}` },
     timeout: 10000,
   });
+
+  // Sem isso, um erro de token inválido/escopo faltando vira só "Request
+  // failed with status code 403" — inútil pra debugar. O HubSpot manda o
+  // motivo real no corpo da resposta (category + message), então repassamos.
+  client.interceptors.response.use(
+    (res) => res,
+    (err) => {
+      const body = err.response && err.response.data;
+      if (body && (body.message || body.category)) {
+        const prefixo = body.category ? `[${body.category}] ` : "";
+        return Promise.reject(
+          new Error(`HubSpot API (${err.response.status}): ${prefixo}${body.message || "erro sem mensagem"}`)
+        );
+      }
+      return Promise.reject(err);
+    }
+  );
+
+  return client;
 }
 
 /**

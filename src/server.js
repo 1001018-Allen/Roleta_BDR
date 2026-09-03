@@ -16,6 +16,22 @@ if (totalCoordenadores === 0) {
   seed();
 }
 
+// Fora do DRY_RUN, o serviço vai tentar chamar HubSpot/Slack de verdade em
+// toda requisição — melhor avisar alto no boot do que descobrir só quando o
+// primeiro lead falhar. Não impede o servidor de subir (pode ser que só o
+// dashboard/leitura de histórico esteja em uso), mas deixa o problema óbvio.
+if (process.env.DRY_RUN !== "true") {
+  if (!process.env.HUBSPOT_TOKEN) {
+    console.warn(
+      "⚠️  DRY_RUN != true e HUBSPOT_TOKEN não está definido — atualizações de deal vão falhar. " +
+        "Rode `npm run check:hubspot` depois de configurar o .env."
+    );
+  }
+  if (!process.env.SLACK_BOT_TOKEN) {
+    console.warn("⚠️  DRY_RUN != true e SLACK_BOT_TOKEN não está definido — notificações no Slack vão falhar.");
+  }
+}
+
 const app = express();
 app.use(express.json());
 

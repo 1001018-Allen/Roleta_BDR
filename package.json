@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.js",
     "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
-    "seed": "node --disable-warning=ExperimentalWarning src/db/seed.js"
+    "seed": "node --disable-warning=ExperimentalWarning src/db/seed.js",
+    "check:hubspot": "node --disable-warning=ExperimentalWarning scripts/check-hubspot-connection.js"
   },
   "license": "UNLICENSED",
   "dependencies": {
