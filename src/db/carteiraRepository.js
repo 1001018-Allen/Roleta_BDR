@@ -97,9 +97,25 @@ function updateForecast(id, { forecast_close_date, forecast_amount, forecast_con
   ).run({ id, forecast_close_date, forecast_amount, forecast_confidence });
 }
 
-function updateScoreInputs(id, { score_whatsapp_msgs, score_calls, score_meetings_held, score_manual_bonus }) {
+function updateScoreInputs(
+  id,
+  {
+    score_contato_certo,
+    score_fit_gmv,
+    score_dor_mapeada,
+    score_timing_real,
+    score_whatsapp_msgs,
+    score_calls,
+    score_meetings_held,
+    score_manual_bonus,
+  }
+) {
   db.prepare(
     `UPDATE deals SET
+       score_contato_certo = @score_contato_certo,
+       score_fit_gmv = @score_fit_gmv,
+       score_dor_mapeada = @score_dor_mapeada,
+       score_timing_real = @score_timing_real,
        score_whatsapp_msgs = @score_whatsapp_msgs,
        score_calls = @score_calls,
        score_meetings_held = @score_meetings_held,
@@ -107,7 +123,17 @@ function updateScoreInputs(id, { score_whatsapp_msgs, score_calls, score_meeting
        score_updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
      WHERE id = @id`
-  ).run({ id, score_whatsapp_msgs, score_calls, score_meetings_held, score_manual_bonus });
+  ).run({
+    id,
+    score_contato_certo,
+    score_fit_gmv,
+    score_dor_mapeada,
+    score_timing_real,
+    score_whatsapp_msgs,
+    score_calls,
+    score_meetings_held,
+    score_manual_bonus,
+  });
 }
 
 function createManualDeal(deal) {

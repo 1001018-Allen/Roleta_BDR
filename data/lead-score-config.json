@@ -1,19 +1,43 @@
 {
-  "_rascunho": true,
-  "_nota": "Pesos PROVISÓRIOS para a pontuação de leads em Qualificação. Ajustar quando o playbook oficial do time de BDR for compartilhado — basta editar os números abaixo e reiniciar o app (não precisa mexer em código).",
-  "pesos": {
-    "mensagem_whatsapp": 2,
-    "ligacao": 5,
-    "reuniao_realizada": 15,
+  "_rascunho": false,
+  "_nota": "Pontuação baseada no Playbook Pré-Vendas (Large/Enterprise, 2026) da VOLL. Os 4 critérios de 'checklist' são os pilares reais de qualificação usados na Reunião de Diagnóstico (etapa 4 do funil) — ver slides 14 e 40 do playbook. Os contadores de atividade complementam, mas pesam menos: eles medem esforço, não qualificação de fato.",
+  "criterios_checklist": {
+    "_nota": "Cada um vale o mesmo peso — são os requisitos que o playbook trata como inegociáveis para avançar o Deal para Negociação.",
+    "contato_certo": {
+      "peso": 20,
+      "descricao": "Estamos falando com o Decisor ou Influenciador Direto (Gestor de Viagens, CFO, Procurement, RH)?"
+    },
+    "fit_gmv": {
+      "peso": 20,
+      "descricao": "GMV mensal estimado (Travel + Wallet + Mobilidade) é compatível com o ICP — mínimo de R$ 400 mil/mês?"
+    },
+    "dor_mapeada": {
+      "peso": 20,
+      "descricao": "A dor da empresa está mapeada — sabemos como a VOLL pode contribuir para a operação dela?"
+    },
+    "timing_real": {
+      "peso": 20,
+      "descricao": "A empresa deseja iniciar uma negociação / receber uma proposta agora (timing real, não 'talvez no futuro')?"
+    }
+  },
+  "atividade": {
+    "_nota": "Pontos de esforço/engajamento — não substituem o checklist acima, só complementam.",
+    "mensagem_whatsapp": 1,
+    "ligacao": 2,
+    "reuniao_realizada": 5,
     "bonus_manual": 1
   },
   "penalidade_por_tempo": {
-    "_nota": "Desconta pontos por dia parado na etapa além do prazo tolerado, para leads 'esfriando' pesarem menos que leads quentes recentes.",
+    "_nota": "Desconta pontos por dia parado na etapa além do prazo tolerado (leads 'esfriando' pesam menos que leads quentes).",
     "dias_tolerados_sem_penalidade": 7,
     "pontos_por_dia_extra": 1
   },
   "escala": {
     "minimo": 0,
     "maximo": 100
+  },
+  "sla_por_etapa": {
+    "_nota": "Prazos máximos definidos no playbook — usados só para exibir alertas visuais na carteira, não entram na fórmula de pontuação.",
+    "Identificação": 7
   }
 }

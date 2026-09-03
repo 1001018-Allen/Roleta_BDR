@@ -105,7 +105,7 @@
 <body class="viz-root">
   <header>
     <h1>📋 Carteira BDR</h1>
-    <span class="badge-rascunho">Pontuação provisória</span>
+    <span class="badge-rascunho" style="color:var(--status-good);border-color:var(--status-good)">Pontuação: Playbook Pré-Vendas VOLL</span>
     <div class="toolbar" style="flex:1">
       <select id="filtro-bdr"><option value="">Todos os BDRs</option></select>
       <div class="spacer"></div>
@@ -171,13 +171,37 @@
       </div>
 
       <div class="tab-panel" data-panel="score">
-        <div class="hint">Pontuação provisória — pesos ajustáveis em <code>data/lead-score-config.json</code> quando o playbook chegar.</div>
+        <div class="hint">Baseado nos 4 pilares da Reunião de Diagnóstico (Playbook Pré-Vendas VOLL). Pesos em <code>data/lead-score-config.json</code>.</div>
         <div id="score-preview"></div>
-        <div class="field-grid">
-          <div class="field-row"><label>Mensagens WhatsApp</label><input type="number" id="score-wa" min="0" /></div>
-          <div class="field-row"><label>Ligações</label><input type="number" id="score-calls" min="0" /></div>
-          <div class="field-row"><label>Reuniões realizadas</label><input type="number" id="score-meet" min="0" /></div>
-          <div class="field-row"><label>Bônus manual</label><input type="number" id="score-bonus" min="0" /></div>
+
+        <div class="field-row">
+          <label>Checklist de qualificação (Diagnóstico)</label>
+          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;font-size:13px;color:var(--text-primary);text-transform:none;letter-spacing:normal">
+            <input type="checkbox" id="score-contato-certo" style="width:auto" />
+            Contato Certo — falando com Decisor/Influenciador direto
+          </label>
+          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;font-size:13px;color:var(--text-primary);text-transform:none;letter-spacing:normal">
+            <input type="checkbox" id="score-fit-gmv" style="width:auto" />
+            Fit de GMV — mínimo R$ 400 mil/mês em T&E
+          </label>
+          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;font-size:13px;color:var(--text-primary);text-transform:none;letter-spacing:normal">
+            <input type="checkbox" id="score-dor-mapeada" style="width:auto" />
+            Dor Mapeada — sabemos como a VOLL contribui
+          </label>
+          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;font-size:13px;color:var(--text-primary);text-transform:none;letter-spacing:normal">
+            <input type="checkbox" id="score-timing-real" style="width:auto" />
+            Timing Real — quer negociar/receber proposta agora
+          </label>
+        </div>
+
+        <div class="field-row">
+          <label>Atividade (complementar, pesa menos)</label>
+          <div class="field-grid">
+            <div class="field-row"><label>Mensagens WhatsApp</label><input type="number" id="score-wa" min="0" /></div>
+            <div class="field-row"><label>Ligações</label><input type="number" id="score-calls" min="0" /></div>
+            <div class="field-row"><label>Reuniões realizadas</label><input type="number" id="score-meet" min="0" /></div>
+            <div class="field-row"><label>Bônus manual</label><input type="number" id="score-bonus" min="0" /></div>
+          </div>
         </div>
         <button class="primary" id="btn-save-score">Salvar pontuação</button>
       </div>
@@ -260,7 +284,9 @@
     const nextMeeting = deal.hs_next_meeting_start
       ? `<span class="pill good">📅 ${fmtDate(deal.hs_next_meeting_start)}</span>`
       : "";
-    const scorePill = deal.score ? `<span class="pill">score ${deal.score.score}</span>` : "";
+    const scorePill = deal.score
+      ? `<span class="pill ${deal.score.prontoParaNegociacao ? "good" : ""}">${deal.score.prontoParaNegociacao ? "✓ pronto p/ negociação" : `score ${deal.score.score}`}</span>`
+      : "";
     div.innerHTML = `
       <div class="name">${deal.hs_dealname}</div>
       <div class="owner">${deal.bdr_nome || deal.hs_owner_name || "sem owner"}</div>
@@ -344,9 +370,13 @@
     document.getElementById("forecast-valor").value = deal.forecast_amount ?? "";
     document.getElementById("forecast-confianca").value = deal.forecast_confidence ?? "";
 
-    const isQualificacao = /qualifica/i.test(deal.hs_dealstage || "");
+    const isQualificacao = /qualifica|diagn/i.test(deal.hs_dealstage || "");
     document.getElementById("tab-score").style.display = isQualificacao ? "" : "none";
     if (isQualificacao) {
+      document.getElementById("score-contato-certo").checked = !!deal.score_contato_certo;
+      document.getElementById("score-fit-gmv").checked = !!deal.score_fit_gmv;
+      document.getElementById("score-dor-mapeada").checked = !!deal.score_dor_mapeada;
+      document.getElementById("score-timing-real").checked = !!deal.score_timing_real;
       document.getElementById("score-wa").value = deal.score_whatsapp_msgs || 0;
       document.getElementById("score-calls").value = deal.score_calls || 0;
       document.getElementById("score-meet").value = deal.score_meetings_held || 0;
@@ -361,12 +391,15 @@
 
   function renderScorePreview(score) {
     if (!score) return;
+    const statusTxt = score.prontoParaNegociacao
+      ? '<span style="color:var(--status-good);font-weight:600">✓ Pronto para Negociação</span>'
+      : `<span style="color:var(--status-warn)">${score.criteriosAtendidos}/${score.totalCriterios} critérios atendidos</span>`;
     document.getElementById("score-preview").innerHTML = `
       <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600">
         <span>Pontuação atual</span><span>${score.score}/100</span>
       </div>
       <div class="score-bar-track"><div class="score-bar-fill" style="width:${score.score}%"></div></div>
-      <div class="hint">${score.detalhe.diasNaEtapa}d na etapa · penalidade de ${score.detalhe.penalidade} pts por tempo parado</div>
+      <div class="hint">${statusTxt} · ${score.detalhe.diasNaEtapa}d na etapa (penalidade de ${score.detalhe.penalidade} pts)</div>
     `;
   }
 
@@ -410,6 +443,10 @@
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        contatoCerto: document.getElementById("score-contato-certo").checked,
+        fitGmv: document.getElementById("score-fit-gmv").checked,
+        dorMapeada: document.getElementById("score-dor-mapeada").checked,
+        timingReal: document.getElementById("score-timing-real").checked,
         whatsappMsgs: parseInt(document.getElementById("score-wa").value) || 0,
         calls: parseInt(document.getElementById("score-calls").value) || 0,
         meetingsHeld: parseInt(document.getElementById("score-meet").value) || 0,

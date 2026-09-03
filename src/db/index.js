@@ -87,7 +87,15 @@ db.exec(`
     forecast_confidence INTEGER,   -- 0-100
     forecast_updated_at TEXT,
 
-    -- Contadores de pontuação (só relevantes/exibidos na etapa Qualificação):
+    -- Checklist de qualificação real (etapa Diagnóstico/Qualificação do playbook
+    -- Pré-Vendas VOLL — slides 14 e 40): os 4 pilares que decidem se o negócio
+    -- está de fato pronto pra avançar. Cada um é 0/1 (marcado ou não).
+    score_contato_certo INTEGER NOT NULL DEFAULT 0,
+    score_fit_gmv INTEGER NOT NULL DEFAULT 0,
+    score_dor_mapeada INTEGER NOT NULL DEFAULT 0,
+    score_timing_real INTEGER NOT NULL DEFAULT 0,
+
+    -- Contadores de atividade/esforço (complementam o checklist, pesam menos):
     score_whatsapp_msgs INTEGER NOT NULL DEFAULT 0,
     score_calls INTEGER NOT NULL DEFAULT 0,
     score_meetings_held INTEGER NOT NULL DEFAULT 0,
@@ -108,5 +116,21 @@ db.exec(`
     criado_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
   );
 `);
+
+// Migração leve: quem já tinha rodado o app antes do checklist de qualificação
+// (score_contato_certo etc.) ganhar essas colunas, o CREATE TABLE IF NOT EXISTS
+// acima não altera a tabela existente. Adiciona só o que faltar, sem apagar dados.
+const existingDealColumns = new Set(db.prepare("PRAGMA table_info(deals)").all().map((c) => c.name));
+const NEW_DEAL_COLUMNS = {
+  score_contato_certo: "INTEGER NOT NULL DEFAULT 0",
+  score_fit_gmv: "INTEGER NOT NULL DEFAULT 0",
+  score_dor_mapeada: "INTEGER NOT NULL DEFAULT 0",
+  score_timing_real: "INTEGER NOT NULL DEFAULT 0",
+};
+for (const [column, definition] of Object.entries(NEW_DEAL_COLUMNS)) {
+  if (!existingDealColumns.has(column)) {
+    db.exec(`ALTER TABLE deals ADD COLUMN ${column} ${definition};`);
+  }
+}
 
 module.exports = { db, DB_FILE };

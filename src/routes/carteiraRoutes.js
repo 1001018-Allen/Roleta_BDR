@@ -32,7 +32,7 @@ router.get("/api/deals", (req, res, next) => {
     const bdrId = req.query.bdrId ? Number(req.query.bdrId) : undefined;
     const dealstage = req.query.dealstage || undefined;
     const deals = repo.listDeals({ bdrId, dealstage }).map((deal) => {
-      const isQualificacao = /qualifica/i.test(deal.hs_dealstage || "");
+      const isQualificacao = /qualifica|diagn/i.test(deal.hs_dealstage || "");
       return {
         ...deal,
         score: isQualificacao ? computeScore(deal) : null,
@@ -49,7 +49,7 @@ router.get("/api/deals/:id", (req, res, next) => {
   try {
     const deal = repo.getDealById(req.params.id);
     if (!deal) return res.status(404).json({ ok: false, message: "Negócio não encontrado." });
-    const isQualificacao = /qualifica/i.test(deal.hs_dealstage || "");
+    const isQualificacao = /qualifica|diagn/i.test(deal.hs_dealstage || "");
     res.json({
       deal: { ...deal, score: isQualificacao ? computeScore(deal) : null },
       notas: repo.listNotes(deal.id),
@@ -95,11 +95,15 @@ router.patch("/api/deals/:id/forecast", (req, res, next) => {
   }
 });
 
-/** PATCH /carteira/api/deals/:id/score — atualiza contadores de pontuação. */
+/** PATCH /carteira/api/deals/:id/score — atualiza checklist de qualificação + contadores de atividade. */
 router.patch("/api/deals/:id/score", (req, res, next) => {
   try {
-    const { whatsappMsgs, calls, meetingsHeld, manualBonus } = req.body;
+    const { contatoCerto, fitGmv, dorMapeada, timingReal, whatsappMsgs, calls, meetingsHeld, manualBonus } = req.body;
     repo.updateScoreInputs(req.params.id, {
+      score_contato_certo: contatoCerto ? 1 : 0,
+      score_fit_gmv: fitGmv ? 1 : 0,
+      score_dor_mapeada: dorMapeada ? 1 : 0,
+      score_timing_real: timingReal ? 1 : 0,
       score_whatsapp_msgs: whatsappMsgs || 0,
       score_calls: calls || 0,
       score_meetings_held: meetingsHeld || 0,

@@ -15,32 +15,57 @@ function daysSince(isoDate) {
 }
 
 /**
- * Calcula a pontuação (0-100, provisória) de um negócio em Qualificação.
- * Fórmula e pesos ficam em data/lead-score-config.json — ajustar lá quando
- * o playbook oficial do time de BDR definir os critérios reais.
+ * Calcula a pontuação (0-100) de um negócio em Qualificação/Diagnóstico.
+ *
+ * Baseada no Playbook Pré-Vendas VOLL (Large/Enterprise, 2026):
+ * - O checklist (Contato Certo, Fit de GMV, Dor Mapeada, Timing Real) são os
+ *   4 pilares reais usados na Reunião de Diagnóstico pra decidir se o Deal
+ *   está pronto pra Negociação — pesam a maior parte da nota.
+ * - Contadores de atividade (WhatsApp, ligação, reunião) complementam,
+ *   medindo esforço/engajamento, mas não substituem o checklist.
+ * - Penalidade por tempo parado desconta pontos de leads esfriando.
+ *
+ * Pesos e critérios ficam em data/lead-score-config.json — editável sem
+ * mexer em código quando o playbook for revisado.
  */
 function computeScore(deal) {
   const cfg = loadConfig();
-  const { pesos, penalidade_por_tempo, escala } = cfg;
+  const { criterios_checklist, atividade, penalidade_por_tempo, escala } = cfg;
 
-  const pontosBase =
-    deal.score_whatsapp_msgs * pesos.mensagem_whatsapp +
-    deal.score_calls * pesos.ligacao +
-    deal.score_meetings_held * pesos.reuniao_realizada +
-    deal.score_manual_bonus * pesos.bonus_manual;
+  const checklist = {
+    contato_certo: !!deal.score_contato_certo,
+    fit_gmv: !!deal.score_fit_gmv,
+    dor_mapeada: !!deal.score_dor_mapeada,
+    timing_real: !!deal.score_timing_real,
+  };
+  const pontosChecklist = Object.entries(checklist).reduce(
+    (soma, [chave, marcado]) => soma + (marcado ? criterios_checklist[chave].peso : 0),
+    0
+  );
+
+  const pontosAtividade =
+    deal.score_whatsapp_msgs * atividade.mensagem_whatsapp +
+    deal.score_calls * atividade.ligacao +
+    deal.score_meetings_held * atividade.reuniao_realizada +
+    deal.score_manual_bonus * atividade.bonus_manual;
 
   const diasNaEtapa = daysSince(deal.hs_date_entered_stage);
   const diasExtras = Math.max(0, diasNaEtapa - penalidade_por_tempo.dias_tolerados_sem_penalidade);
   const penalidade = diasExtras * penalidade_por_tempo.pontos_por_dia_extra;
 
-  const bruto = pontosBase - penalidade;
+  const bruto = pontosChecklist + pontosAtividade - penalidade;
   const limitado = Math.min(escala.maximo, Math.max(escala.minimo, bruto));
+
+  const criteriosAtendidos = Object.values(checklist).filter(Boolean).length;
+  const totalCriterios = Object.keys(checklist).length;
 
   return {
     score: Math.round(limitado),
-    detalhe: { pontosBase, diasNaEtapa, diasExtras, penalidade },
-    pesos,
-    rascunho: !!cfg._rascunho,
+    checklist,
+    criteriosAtendidos,
+    totalCriterios,
+    prontoParaNegociacao: criteriosAtendidos === totalCriterios,
+    detalhe: { pontosChecklist, pontosAtividade, diasNaEtapa, diasExtras, penalidade },
   };
 }
 

@@ -131,7 +131,8 @@ distribuição sobrevive a reinícios do servidor. Lógica em
 Página estilo CRM (visual parecido com HubSpot, mas 100% editável e local)
 pra acompanhar a carteira de cada BDR dia a dia: quadro Kanban por etapa,
 timeline de interações por negócio, forecast manual e uma pontuação
-(lead score) provisória para negócios em Qualificação.
+(lead score) baseada nos critérios reais de qualificação do playbook de
+Pré-Vendas para negócios em Qualificação/Diagnóstico.
 
 Acesse em `http://localhost:3000/carteira` com o servidor rodando
 (`npm start` ou `npm run dev`).
@@ -170,12 +171,26 @@ editáveis livremente na aba "Forecast" do painel lateral.
 
 ### Pontuação de leads (lead score)
 
-Aparece só para negócios na etapa **Qualificação**. Fórmula e pesos ficam
-em `data/lead-score-config.json` (mensagens de WhatsApp, ligações, reuniões
-realizadas, bônus manual, e uma penalidade por dias parado na etapa) —
-**hoje são valores provisórios**, ajustar esse arquivo assim que o playbook
-oficial de qualificação do time for definido (não precisa mexer em código,
-só editar os números e reiniciar o servidor).
+Aparece só para negócios na etapa **Qualificação/Diagnóstico**. Baseada no
+**Playbook Pré-Vendas VOLL (Large/Enterprise, 2026)** — especificamente nos
+"3 pilares inegociáveis" da Reunião de Diagnóstico (mais a dor mapeada do
+ICP), que é o critério real que o time usa pra decidir se um Deal está
+pronto pra avançar para Negociação:
+
+- **Contato Certo** — está falando com o Decisor ou Influenciador direto
+  (Gestor de Viagens, CFO, Procurement, RH)?
+- **Fit de GMV** — volume mensal (Travel + Wallet + Mobilidade) bate o ICP,
+  mínimo de R$ 400 mil/mês?
+- **Dor Mapeada** — sabemos como a VOLL contribui pra operação da empresa?
+- **Timing Real** — a empresa quer negociar/receber proposta agora?
+
+Cada critério marcado vale pontos (peso configurável); os 4 juntos
+determinam o selo **"pronto para negociação"** que aparece no card do
+Kanban. Contadores de atividade (mensagens de WhatsApp, ligações, reuniões
+realizadas) complementam a nota — medem esforço, não substituem o
+checklist — e há uma penalidade por dias parado na etapa. Pesos e textos
+ficam em `data/lead-score-config.json`, editável sem mexer em código
+(só reiniciar o servidor) caso o playbook seja revisado.
 
 ## Banco de dados (SQLite)
 
