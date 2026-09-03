@@ -60,6 +60,77 @@ db.exec(`
     chave TEXT PRIMARY KEY,
     valor TEXT
   );
+
+  -- Carteira de negócios (deals) por BDR — alimenta a página /carteira.
+  -- Colunas com prefixo "hs_" vêm do HubSpot (via import de CSV) e são
+  -- sobrescritas a cada import. As demais são editadas manualmente por aqui
+  -- e NUNCA são tocadas pelo import — são a "camada" própria do time.
+  CREATE TABLE IF NOT EXISTS deals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hubspot_deal_id TEXT UNIQUE,
+    bdr_id INTEGER REFERENCES bdrs(id),
+    hs_owner_name TEXT,            -- nome do owner como veio do CSV (fallback se não bater com nenhum bdr_id)
+    hs_dealname TEXT NOT NULL,
+    hs_pipeline TEXT,
+    hs_dealstage TEXT NOT NULL,    -- rótulo da etapa, ex: "Cadência", "Qualificação"
+    hs_amount REAL,
+    hs_createdate TEXT,
+    hs_date_entered_stage TEXT,
+    hs_last_activity_date TEXT,
+    hs_next_meeting_name TEXT,
+    hs_next_meeting_start TEXT,
+    hs_imported_at TEXT,
+
+    -- Editável pelo time, nunca sobrescrito pelo import:
+    forecast_close_date TEXT,
+    forecast_amount REAL,
+    forecast_confidence INTEGER,   -- 0-100
+    forecast_updated_at TEXT,
+
+    -- Checklist de qualificação real (etapa Diagnóstico/Qualificação do playbook
+    -- Pré-Vendas VOLL — slides 14 e 40): os 4 pilares que decidem se o negócio
+    -- está de fato pronto pra avançar. Cada um é 0/1 (marcado ou não).
+    score_contato_certo INTEGER NOT NULL DEFAULT 0,
+    score_fit_gmv INTEGER NOT NULL DEFAULT 0,
+    score_dor_mapeada INTEGER NOT NULL DEFAULT 0,
+    score_timing_real INTEGER NOT NULL DEFAULT 0,
+
+    -- Contadores de atividade/esforço (complementam o checklist, pesam menos):
+    score_whatsapp_msgs INTEGER NOT NULL DEFAULT 0,
+    score_calls INTEGER NOT NULL DEFAULT 0,
+    score_meetings_held INTEGER NOT NULL DEFAULT 0,
+    score_manual_bonus INTEGER NOT NULL DEFAULT 0,
+    score_updated_at TEXT,
+
+    source TEXT NOT NULL DEFAULT 'manual', -- 'hubspot_csv' | 'manual'
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+
+  -- Timeline de interações de cada negócio (histórico cronológico, nunca editado por cima).
+  CREATE TABLE IF NOT EXISTS deal_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL DEFAULT 'geral', -- 'whatsapp' | 'ligacao' | 'reuniao' | 'email' | 'geral'
+    texto TEXT NOT NULL,
+    criado_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
 `);
+
+// Migração leve: quem já tinha rodado o app antes do checklist de qualificação
+// (score_contato_certo etc.) ganhar essas colunas, o CREATE TABLE IF NOT EXISTS
+// acima não altera a tabela existente. Adiciona só o que faltar, sem apagar dados.
+const existingDealColumns = new Set(db.prepare("PRAGMA table_info(deals)").all().map((c) => c.name));
+const NEW_DEAL_COLUMNS = {
+  score_contato_certo: "INTEGER NOT NULL DEFAULT 0",
+  score_fit_gmv: "INTEGER NOT NULL DEFAULT 0",
+  score_dor_mapeada: "INTEGER NOT NULL DEFAULT 0",
+  score_timing_real: "INTEGER NOT NULL DEFAULT 0",
+};
+for (const [column, definition] of Object.entries(NEW_DEAL_COLUMNS)) {
+  if (!existingDealColumns.has(column)) {
+    db.exec(`ALTER TABLE deals ADD COLUMN ${column} ${definition};`);
+  }
+}
 
 module.exports = { db, DB_FILE };

@@ -6,6 +6,7 @@ const { seed } = require("./db/seed");
 const webhookRoutes = require("./routes/webhookRoutes");
 const testRoutes = require("./routes/testRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const carteiraRoutes = require("./routes/carteiraRoutes");
 const slackChannelIngestService = require("./services/slackChannelIngestService");
 
 // Popula coordenadores/BDRs automaticamente se o banco ainda estiver vazio
@@ -22,9 +23,15 @@ app.use(express.json());
 app.use("/webhook", webhookRoutes);
 app.use("/test", testRoutes);
 app.use("/dashboard", dashboardRoutes);
+app.use("/carteira", carteiraRoutes);
 
 app.get("/", (req, res) => {
-  res.json({ service: "roleta-bdr-webhook", status: "running", dashboard: "/dashboard" });
+  res.json({
+    service: "roleta-bdr-webhook",
+    status: "running",
+    dashboard: "/dashboard",
+    carteira: "/carteira",
+  });
 });
 
 // 404 para rotas não mapeadas
