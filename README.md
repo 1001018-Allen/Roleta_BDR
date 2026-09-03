@@ -126,6 +126,57 @@ para o coordenador, uma linha por coordenador para o BDR), por isso a
 distribuição sobrevive a reinícios do servidor. Lógica em
 `src/state/roundRobinStore.js` e `src/services/leadDistributionService.js`.
 
+## Carteira BDR (`/carteira`)
+
+Página estilo CRM (visual parecido com HubSpot, mas 100% editável e local)
+pra acompanhar a carteira de cada BDR dia a dia: quadro Kanban por etapa,
+timeline de interações por negócio, forecast manual e uma pontuação
+(lead score) provisória para negócios em Qualificação.
+
+Acesse em `http://localhost:3000/carteira` com o servidor rodando
+(`npm start` ou `npm run dev`).
+
+### Como os dados chegam lá
+
+Não há sync automático com o HubSpot ainda (precisa de uma API key/Private
+App Token que exige permissão de admin na conta HubSpot — ver
+"Pendências conhecidas"). Por enquanto, a atualização é manual:
+
+1. No HubSpot, vá em **Negócios**, monte uma visualização com as colunas:
+   Nome do negócio, Proprietário do negócio, Pipeline, Etapa do negócio,
+   Valor, Data de criação, Data que entrou na fase atual, Data da última
+   atividade, Nome/hora da próxima reunião.
+2. **Exportar** essa visualização como CSV.
+3. Abrir o arquivo, copiar todo o conteúdo.
+4. Na página `/carteira`, clicar em **"Importar CSV do HubSpot"**, colar e
+   confirmar.
+
+O import faz **upsert** por `ID do negócio` (não duplica ao reimportar) e o
+proprietário é casado com os BDRs de `data/bdrs-seed.json` pelo nome. Campos
+editados na própria página (forecast, pontuação, timeline de notas)
+**nunca são sobrescritos** por uma reimportação — ficam em colunas
+separadas das que vêm do HubSpot (prefixo `hs_`). Rode a importação todo
+dia (ou sempre que quiser atualizar) pra manter a carteira em dia.
+
+### Timeline de interações
+
+Cada negócio tem um histórico cronológico de anotações (tipo: geral,
+WhatsApp, ligação, reunião, e-mail) — nada é sobrescrito, só acumula.
+
+### Forecast manual
+
+Por negócio: data prevista de fechamento, valor estimado e % de confiança,
+editáveis livremente na aba "Forecast" do painel lateral.
+
+### Pontuação de leads (lead score)
+
+Aparece só para negócios na etapa **Qualificação**. Fórmula e pesos ficam
+em `data/lead-score-config.json` (mensagens de WhatsApp, ligações, reuniões
+realizadas, bônus manual, e uma penalidade por dias parado na etapa) —
+**hoje são valores provisórios**, ajustar esse arquivo assim que o playbook
+oficial de qualificação do time for definido (não precisa mexer em código,
+só editar os números e reiniciar o servidor).
+
 ## Banco de dados (SQLite)
 
 Usa o módulo `node:sqlite` nativo do Node 22 (sem dependências extras / sem
@@ -141,6 +192,8 @@ Tabelas:
   sorteados, se HubSpot/Slack deram certo, se foi dry-run, erros, origem,
   se já estava atribuído antes de chegar aqui)
 - `ingest_state` (timestamp da última mensagem processada no polling do Slack)
+- `deals` (carteira de negócios por BDR — ver seção "Carteira BDR" abaixo)
+- `deal_notes` (timeline de interações por negócio)
 
 ### Seed / configuração de coordenadores e BDRs
 

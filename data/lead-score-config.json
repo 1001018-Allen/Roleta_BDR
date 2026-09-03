@@ -1,0 +1,19 @@
+{
+  "_rascunho": true,
+  "_nota": "Pesos PROVISÓRIOS para a pontuação de leads em Qualificação. Ajustar quando o playbook oficial do time de BDR for compartilhado — basta editar os números abaixo e reiniciar o app (não precisa mexer em código).",
+  "pesos": {
+    "mensagem_whatsapp": 2,
+    "ligacao": 5,
+    "reuniao_realizada": 15,
+    "bonus_manual": 1
+  },
+  "penalidade_por_tempo": {
+    "_nota": "Desconta pontos por dia parado na etapa além do prazo tolerado, para leads 'esfriando' pesarem menos que leads quentes recentes.",
+    "dias_tolerados_sem_penalidade": 7,
+    "pontos_por_dia_extra": 1
+  },
+  "escala": {
+    "minimo": 0,
+    "maximo": 100
+  }
+}

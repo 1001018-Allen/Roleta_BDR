@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Carteira BDR</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --surface-2:      #f2f1ee;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --border:         rgba(11,11,11,0.10);
+    --accent:         #2a78d6;
+    --status-good:    #0ca30c;
+    --status-warn:    #c98a12;
+    --status-critical:#d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --surface-2:      #232322;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --border:         rgba(255,255,255,0.10);
+      --accent:         #3987e5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page-plane); color: var(--text-primary); }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  .badge-rascunho { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; color: var(--status-critical); border: 1px solid var(--status-critical); border-radius: 999px; padding: 2px 10px; }
+  select, input, textarea, button { font-family: inherit; font-size: 13px; }
+  select, input[type=text], input[type=number], input[type=date], textarea {
+    background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px;
+  }
+  button { cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); padding: 6px 12px; }
+  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  button:hover { filter: brightness(0.97); }
+
+  main { padding: 20px 24px 60px; max-width: 1600px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .tile .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar .spacer { flex: 1; }
+
+  .board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+  .column { flex: 0 0 260px; background: var(--surface-2); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; max-height: 72vh; }
+  .column-header { display: flex; justify-content: space-between; align-items: center; padding: 4px 4px 2px; font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.02em; }
+  .column-count { background: var(--surface-1); border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+  .column-cards { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 2px; }
+
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
+  .card:hover { border-color: var(--accent); }
+  .card .name { font-size: 13px; font-weight: 600; }
+  .card .owner { font-size: 12px; color: var(--text-secondary); }
+  .card .meta { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { font-size: 10px; border-radius: 999px; padding: 1px 8px; border: 1px solid var(--border); color: var(--text-secondary); }
+  .pill.warn { color: var(--status-warn); border-color: var(--status-warn); }
+  .pill.critical { color: var(--status-critical); border-color: var(--status-critical); }
+  .pill.good { color: var(--status-good); border-color: var(--status-good); }
+  .empty-state { color: var(--text-muted); font-size: 12px; padding: 12px 4px; }
+
+  /* Drawer lateral */
+  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: none; z-index: 20; }
+  #drawer { position: fixed; top: 0; right: 0; height: 100%; width: 440px; max-width: 92vw; background: var(--surface-1); border-left: 1px solid var(--border); z-index: 21; display: none; flex-direction: column; overflow-y: auto; }
+  #drawer .drawer-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+  #drawer .drawer-header h2 { font-size: 15px; margin: 0 0 4px; }
+  #drawer .drawer-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 18px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+  .tab { padding: 8px 12px; font-size: 12px; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--text-primary); border-color: var(--accent); font-weight: 600; }
+  .tab-panel { display: none; flex-direction: column; gap: 10px; }
+  .tab-panel.active { display: flex; }
+  .field-row { display: flex; flex-direction: column; gap: 4px; }
+  .field-row label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .note-item { border-left: 2px solid var(--border); padding: 4px 0 4px 10px; font-size: 12px; }
+  .note-item .note-meta { color: var(--text-muted); font-size: 10px; }
+  .score-bar-track { background: var(--surface-2); border-radius: 999px; height: 10px; overflow: hidden; }
+  .score-bar-fill { height: 100%; background: var(--accent); }
+
+  #modal-import { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 30; }
+  #modal-import .box { background: var(--surface-1); border-radius: 12px; padding: 20px; width: 640px; max-width: 92vw; display: flex; flex-direction: column; gap: 10px; }
+  #modal-import textarea { width: 100%; height: 200px; font-family: monospace; font-size: 11px; }
+  .hint { font-size: 11px; color: var(--text-muted); }
+  #import-result { font-size: 12px; }
+</style>
+</head>
+<body class="viz-root">
+  <header>
+    <h1>📋 Carteira BDR</h1>
+    <span class="badge-rascunho">Pontuação provisória</span>
+    <div class="toolbar" style="flex:1">
+      <select id="filtro-bdr"><option value="">Todos os BDRs</option></select>
+      <div class="spacer"></div>
+      <button id="btn-refresh">↻ Atualizar</button>
+      <button class="primary" id="btn-import">Importar CSV do HubSpot</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="tiles" id="tiles"></div>
+    <div id="board" class="board"></div>
+  </main>
+
+  <div id="overlay"></div>
+  <div id="drawer">
+    <div class="drawer-header">
+      <div>
+        <h2 id="drawer-title">—</h2>
+        <div class="hint" id="drawer-sub"></div>
+      </div>
+      <button id="drawer-close">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="tabs">
+        <div class="tab active" data-tab="detalhes">Detalhes</div>
+        <div class="tab" data-tab="timeline">Timeline</div>
+        <div class="tab" data-tab="forecast">Forecast</div>
+        <div class="tab" data-tab="score" id="tab-score" style="display:none">Pontuação</div>
+      </div>
+
+      <div class="tab-panel active" data-panel="detalhes" id="panel-detalhes"></div>
+
+      <div class="tab-panel" data-panel="timeline">
+        <div class="field-row">
+          <label>Nova anotação</label>
+          <select id="nota-tipo">
+            <option value="geral">Geral</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="ligacao">Ligação</option>
+            <option value="reuniao">Reunião</option>
+            <option value="email">E-mail</option>
+          </select>
+          <textarea id="nota-texto" rows="2" placeholder="Ex: liguei, não atendeu / respondeu no WhatsApp..."></textarea>
+          <button class="primary" id="btn-add-nota">Adicionar</button>
+        </div>
+        <div id="lista-notas"></div>
+      </div>
+
+      <div class="tab-panel" data-panel="forecast">
+        <div class="field-row">
+          <label>Data prevista de fechamento</label>
+          <input type="date" id="forecast-data" />
+        </div>
+        <div class="field-row">
+          <label>Valor estimado (R$)</label>
+          <input type="number" id="forecast-valor" step="0.01" />
+        </div>
+        <div class="field-row">
+          <label>Confiança (%)</label>
+          <input type="number" id="forecast-confianca" min="0" max="100" />
+        </div>
+        <button class="primary" id="btn-save-forecast">Salvar forecast</button>
+      </div>
+
+      <div class="tab-panel" data-panel="score">
+        <div class="hint">Pontuação provisória — pesos ajustáveis em <code>data/lead-score-config.json</code> quando o playbook chegar.</div>
+        <div id="score-preview"></div>
+        <div class="field-grid">
+          <div class="field-row"><label>Mensagens WhatsApp</label><input type="number" id="score-wa" min="0" /></div>
+          <div class="field-row"><label>Ligações</label><input type="number" id="score-calls" min="0" /></div>
+          <div class="field-row"><label>Reuniões realizadas</label><input type="number" id="score-meet" min="0" /></div>
+          <div class="field-row"><label>Bônus manual</label><input type="number" id="score-bonus" min="0" /></div>
+        </div>
+        <button class="primary" id="btn-save-score">Salvar pontuação</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-import">
+    <div class="box">
+      <h2 style="margin:0;font-size:15px">Importar CSV do HubSpot</h2>
+      <div class="hint">
+        No HubSpot: Negócios → selecione as colunas (Nome do negócio, Proprietário, Etapa, Pipeline, Valor,
+        Data de criação, Data que entrou na fase atual, Data da última atividade, Próxima reunião) → Exportar → abra o
+        arquivo e cole o conteúdo aqui. Campos editados manualmente (forecast, pontuação, timeline) nunca são
+        sobrescritos por essa importação.
+      </div>
+      <textarea id="csv-text" placeholder="Cole aqui o conteúdo do CSV..."></textarea>
+      <div id="import-result"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button id="btn-cancel-import">Cancelar</button>
+        <button class="primary" id="btn-do-import">Importar</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const STAGE_ORDER = [
+    "Base de Lead OTB", "Wishlist", "Identificação", "MQL", "Cadência",
+    "Qualificação", "Prospecção", "Reunião Agendada", "BID", "Proposta",
+    "Negociação", "Contrato", "Ganho", "Perdido",
+  ];
+
+  let currentDeals = [];
+  let currentDealId = null;
+
+  function daysSince(iso) {
+    if (!iso) return null;
+    return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+  }
+  function fmtDate(iso) {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("pt-BR");
+  }
+  function fmtMoney(v) {
+    if (v === null || v === undefined) return "—";
+    return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  }
+
+  async function loadBdrFilter() {
+    const { bdrs } = await fetch("/carteira/api/bdrs").then((r) => r.json());
+    const sel = document.getElementById("filtro-bdr");
+    bdrs.forEach((b) => {
+      const opt = document.createElement("option");
+      opt.value = b.id;
+      opt.textContent = `${b.nome} (${b.coordenador_nome})`;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function loadStats() {
+    const stats = await fetch("/carteira/api/stats").then((r) => r.json());
+    document.getElementById("tiles").innerHTML = `
+      <div class="tile"><div class="label">Negócios na carteira</div><div class="value">${stats.total}</div></div>
+      <div class="tile"><div class="label">Sem atividade há 14+ dias</div><div class="value" style="color:${stats.semAtividade14d ? "var(--status-critical)" : "inherit"}">${stats.semAtividade14d}</div></div>
+      <div class="tile"><div class="label">Com reunião futura agendada</div><div class="value">${stats.comReuniaoFutura}</div></div>
+    `;
+  }
+
+  function activityPill(deal) {
+    const d = daysSince(deal.hs_last_activity_date);
+    if (d === null) return `<span class="pill">sem atividade registrada</span>`;
+    if (d > 14) return `<span class="pill critical">${d}d sem contato</span>`;
+    if (d > 7) return `<span class="pill warn">${d}d sem contato</span>`;
+    return `<span class="pill good">${d}d sem contato</span>`;
+  }
+
+  function renderCard(deal) {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.onclick = () => openDrawer(deal.id);
+    const nextMeeting = deal.hs_next_meeting_start
+      ? `<span class="pill good">📅 ${fmtDate(deal.hs_next_meeting_start)}</span>`
+      : "";
+    const scorePill = deal.score ? `<span class="pill">score ${deal.score.score}</span>` : "";
+    div.innerHTML = `
+      <div class="name">${deal.hs_dealname}</div>
+      <div class="owner">${deal.bdr_nome || deal.hs_owner_name || "sem owner"}</div>
+      <div class="meta">${activityPill(deal)}${nextMeeting}${scorePill}</div>
+    `;
+    return div;
+  }
+
+  function renderBoard(deals) {
+    const stagesPresent = [...new Set(deals.map((d) => d.hs_dealstage))];
+    stagesPresent.sort((a, b) => {
+      const ia = STAGE_ORDER.indexOf(a);
+      const ib = STAGE_ORDER.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+
+    const board = document.getElementById("board");
+    board.innerHTML = "";
+    if (stagesPresent.length === 0) {
+      board.innerHTML = `<div class="empty-state">Nenhum negócio ainda. Clique em "Importar CSV do HubSpot" pra carregar a carteira.</div>`;
+      return;
+    }
+    stagesPresent.forEach((stage) => {
+      const dealsInStage = deals.filter((d) => d.hs_dealstage === stage);
+      const col = document.createElement("div");
+      col.className = "column";
+      col.innerHTML = `<div class="column-header"><span>${stage}</span><span class="column-count">${dealsInStage.length}</span></div>`;
+      const cardsWrap = document.createElement("div");
+      cardsWrap.className = "column-cards";
+      dealsInStage.forEach((d) => cardsWrap.appendChild(renderCard(d)));
+      col.appendChild(cardsWrap);
+      board.appendChild(col);
+    });
+  }
+
+  async function loadDeals() {
+    const bdrId = document.getElementById("filtro-bdr").value;
+    const qs = bdrId ? `?bdrId=${bdrId}` : "";
+    const { deals } = await fetch(`/carteira/api/deals${qs}`).then((r) => r.json());
+    currentDeals = deals;
+    renderBoard(deals);
+  }
+
+  async function loadAll() {
+    await Promise.all([loadStats(), loadDeals()]);
+  }
+
+  // ---- Drawer ----
+  function switchTab(name) {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === name));
+  }
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => switchTab(t.dataset.tab)));
+
+  async function openDrawer(id) {
+    currentDealId = id;
+    const { deal, notas } = await fetch(`/carteira/api/deals/${id}`).then((r) => r.json());
+
+    document.getElementById("drawer-title").textContent = deal.hs_dealname;
+    document.getElementById("drawer-sub").textContent = `${deal.bdr_nome || deal.hs_owner_name || "sem owner"} · ${deal.hs_dealstage}`;
+
+    document.getElementById("panel-detalhes").innerHTML = `
+      <div class="field-row"><label>Pipeline</label><div>${deal.hs_pipeline || "—"}</div></div>
+      <div class="field-row"><label>Etapa</label><div>${deal.hs_dealstage}</div></div>
+      <div class="field-row"><label>Valor (HubSpot)</label><div>${fmtMoney(deal.hs_amount)}</div></div>
+      <div class="field-row"><label>Criado em</label><div>${fmtDate(deal.hs_createdate)}</div></div>
+      <div class="field-row"><label>Entrou na etapa atual</label><div>${fmtDate(deal.hs_date_entered_stage)} ${deal.hs_date_entered_stage ? `(${daysSince(deal.hs_date_entered_stage)}d)` : ""}</div></div>
+      <div class="field-row"><label>Última atividade</label><div>${fmtDate(deal.hs_last_activity_date)} ${activityPill(deal)}</div></div>
+      <div class="field-row"><label>Próxima reunião</label><div>${deal.hs_next_meeting_name || "—"} ${deal.hs_next_meeting_start ? "em " + fmtDate(deal.hs_next_meeting_start) : ""}</div></div>
+      <div class="field-row"><label>Origem do registro</label><div>${deal.source === "hubspot_csv" ? "Importado do HubSpot" : "Criado manualmente"}</div></div>
+    `;
+
+    document.getElementById("lista-notas").innerHTML = notas.length
+      ? notas.map((n) => `<div class="note-item"><div class="note-meta">${new Date(n.criado_em).toLocaleString("pt-BR")} · ${n.tipo}</div>${n.texto}</div>`).join("")
+      : '<div class="empty-state">Nenhuma anotação ainda.</div>';
+
+    document.getElementById("forecast-data").value = deal.forecast_close_date ? deal.forecast_close_date.substring(0, 10) : "";
+    document.getElementById("forecast-valor").value = deal.forecast_amount ?? "";
+    document.getElementById("forecast-confianca").value = deal.forecast_confidence ?? "";
+
+    const isQualificacao = /qualifica/i.test(deal.hs_dealstage || "");
+    document.getElementById("tab-score").style.display = isQualificacao ? "" : "none";
+    if (isQualificacao) {
+      document.getElementById("score-wa").value = deal.score_whatsapp_msgs || 0;
+      document.getElementById("score-calls").value = deal.score_calls || 0;
+      document.getElementById("score-meet").value = deal.score_meetings_held || 0;
+      document.getElementById("score-bonus").value = deal.score_manual_bonus || 0;
+      renderScorePreview(deal.score);
+    }
+
+    switchTab("detalhes");
+    document.getElementById("overlay").style.display = "block";
+    document.getElementById("drawer").style.display = "flex";
+  }
+
+  function renderScorePreview(score) {
+    if (!score) return;
+    document.getElementById("score-preview").innerHTML = `
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600">
+        <span>Pontuação atual</span><span>${score.score}/100</span>
+      </div>
+      <div class="score-bar-track"><div class="score-bar-fill" style="width:${score.score}%"></div></div>
+      <div class="hint">${score.detalhe.diasNaEtapa}d na etapa · penalidade de ${score.detalhe.penalidade} pts por tempo parado</div>
+    `;
+  }
+
+  function closeDrawer() {
+    document.getElementById("overlay").style.display = "none";
+    document.getElementById("drawer").style.display = "none";
+    currentDealId = null;
+  }
+  document.getElementById("drawer-close").addEventListener("click", closeDrawer);
+  document.getElementById("overlay").addEventListener("click", closeDrawer);
+
+  document.getElementById("btn-add-nota").addEventListener("click", async () => {
+    const texto = document.getElementById("nota-texto").value.trim();
+    if (!texto) return;
+    const tipo = document.getElementById("nota-tipo").value;
+    await fetch(`/carteira/api/deals/${currentDealId}/notas`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tipo, texto }),
+    });
+    document.getElementById("nota-texto").value = "";
+    openDrawer(currentDealId);
+  });
+
+  document.getElementById("btn-save-forecast").addEventListener("click", async () => {
+    await fetch(`/carteira/api/deals/${currentDealId}/forecast`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        forecastCloseDate: document.getElementById("forecast-data").value || null,
+        forecastAmount: parseFloat(document.getElementById("forecast-valor").value) || null,
+        forecastConfidence: parseInt(document.getElementById("forecast-confianca").value) || null,
+      }),
+    });
+    closeDrawer();
+    loadDeals();
+  });
+
+  document.getElementById("btn-save-score").addEventListener("click", async () => {
+    const resp = await fetch(`/carteira/api/deals/${currentDealId}/score`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        whatsappMsgs: parseInt(document.getElementById("score-wa").value) || 0,
+        calls: parseInt(document.getElementById("score-calls").value) || 0,
+        meetingsHeld: parseInt(document.getElementById("score-meet").value) || 0,
+        manualBonus: parseInt(document.getElementById("score-bonus").value) || 0,
+      }),
+    }).then((r) => r.json());
+    renderScorePreview(resp.score);
+    loadDeals();
+  });
+
+  // ---- Import CSV ----
+  document.getElementById("btn-import").addEventListener("click", () => {
+    document.getElementById("modal-import").style.display = "flex";
+  });
+  document.getElementById("btn-cancel-import").addEventListener("click", () => {
+    document.getElementById("modal-import").style.display = "none";
+  });
+  document.getElementById("btn-do-import").addEventListener("click", async () => {
+    const csv = document.getElementById("csv-text").value;
+    const resp = await fetch("/carteira/api/import-csv", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csv }),
+    }).then((r) => r.json());
+    const resultDiv = document.getElementById("import-result");
+    if (resp.erros && resp.erros.length) {
+      resultDiv.innerHTML = `<span style="color:var(--status-critical)">${resp.erros.join("<br/>")}</span>`;
+    } else {
+      resultDiv.innerHTML = `<span style="color:var(--status-good)">Importado: ${resp.criados} novo(s), ${resp.atualizados} atualizado(s).</span>`;
+      loadAll();
+    }
+  });
+
+  document.getElementById("btn-refresh").addEventListener("click", loadAll);
+  document.getElementById("filtro-bdr").addEventListener("change", loadDeals);
+
+  loadBdrFilter();
+  loadAll();
+</script>
+</body>
+</html>
